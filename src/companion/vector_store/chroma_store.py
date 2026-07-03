@@ -1,7 +1,7 @@
 from __future__ import annotations
 import json
-from rag.schemas import EnrichedChunk, RetrievedDoc
-from rag.vector_store.base import VectorStore
+from companion.schemas import EnrichedChunk, RetrievedDoc
+from companion.vector_store.base import VectorStore
 
 
 def _collection_name(variant: str) -> str:

@@ -7,7 +7,7 @@ def get_router_llm() -> LLMProvider:
     """Modelo ligero para clasificar intención (8B). Temperatura 0."""
     # usa settings.router_model, temperature=0.0
     
-    from rag.providers.llm_cache import CachingLLMProvider
+    from companion.providers.llm_cache import CachingLLMProvider
     return CachingLLMProvider(
         provider,
         cache_dir=settings.llm_cache_dir,
@@ -19,7 +19,7 @@ def get_router_llm() -> LLMProvider:
 def get_content_llm() -> LLMProvider:
     """Modelo pesado para generar contenido (70B)."""
     # usa settings.content_model, temperature=0.2
-     from rag.providers.llm_cache import CachingLLMProvider
+     from companion.providers.llm_cache import CachingLLMProvider
     return CachingLLMProvider(
         provider,
         cache_dir=settings.llm_cache_dir,
@@ -34,27 +34,27 @@ def get_llm_provider(cached: bool | None = None) -> LLMProvider:
     Mock is never cached (it's already free and deterministic).
     """
     if settings.llm_provider == "anthropic":
-        from rag.providers.anthropic_llm import AnthropicLLMProvider
+        from companion.providers.anthropic_llm import AnthropicLLMProvider
         provider: LLMProvider = AnthropicLLMProvider(model=settings.llm_model)
         model_name = settings.llm_model
 
     elif settings.llm_provider == "gemini":
-        from rag.providers.gemini_llm import GeminiProvider
+        from companion.providers.gemini_llm import GeminiProvider
         provider = GeminiProvider(model=settings.gemini_model)
         model_name = settings.gemini_model
 
     elif settings.llm_provider == "nvidia":
-        from rag.providers.nvidia_llm import NvidiaLLMProvider
+        from companion.providers.nvidia_llm import NvidiaLLMProvider
         provider = NvidiaLLMProvider(model=settings.nvidia_model)
         model_name = settings.nvidia_model
     else:
-        from rag.providers.mock_llm import MockLLMProvider
+        from companion.providers.mock_llm import MockLLMProvider
         return MockLLMProvider()   # mock: skip cache, already deterministic
 
     # Wrap real providers with disk cache (respects llm_cache_enabled setting)
     use_cache = settings.llm_cache_enabled if cached is None else cached
     if use_cache:
-        from rag.providers.llm_cache import CachingLLMProvider
+        from companion.providers.llm_cache import CachingLLMProvider
         return CachingLLMProvider(
             provider,
             cache_dir=settings.llm_cache_dir,

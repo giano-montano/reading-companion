@@ -8,24 +8,23 @@ from collections.abc import Iterator
 from rich.console import Console
 from rich.progress import track
 
-from rag.chunkers.base import Chunker
-from rag.corpus.base import CorpusLoader
-from rag.embedders.base import Embedder
-from rag.enrichers.base import Enricher
-from rag.schemas import Document, EnrichedChunk
-from rag.vector_store.base import VectorStore
+from companion.chunkers.base import Chunker
+from companion.corpus.base import CorpusLoader
+from companion.embedders.base import Embedder
+from companion.enrichers.base import Enricher
+from companion.schemas import Document, EnrichedChunk
+from companion.vector_store.base import VectorStore
 
 console = Console()
 _BATCH_SIZE = 64
 
 
-def build_index(
+def index_book(
     loader: CorpusLoader,
     chunker: Chunker,
     enricher: Enricher,
     embedder: Embedder,
     store: VectorStore,
-    variant: str,
     force: bool = False,
 ) -> int:
     """

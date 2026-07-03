@@ -16,7 +16,7 @@ class NvidiaLLMProvider(LLMProvider):
         except ImportError as exc:
             raise ImportError("pip install openai") from exc
         
-        from rag.config import settings
+        from companion.config import settings
         if not settings.nvidia_api_key:
             raise ValueError("NVIDIA_API_KEY no está configurada en el entorno / .env")
             

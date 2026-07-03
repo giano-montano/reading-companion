@@ -1,7 +1,7 @@
 from __future__ import annotations
-from rag.enrichers.base import Enricher
-from rag.providers.llm_base import LLMProvider
-from rag.schemas import Chunk, EnrichedChunk
+from companion.enrichers.base import Enricher
+from companion.providers.llm_base import LLMProvider
+from companion.schemas import Chunk, EnrichedChunk
 
 # Maximum characters of the parent document passed to the LLM as context.
 _DOC_CONTEXT_LIMIT = 3000

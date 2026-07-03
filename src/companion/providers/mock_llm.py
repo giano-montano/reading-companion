@@ -1,5 +1,5 @@
 from __future__ import annotations
-from rag.providers.llm_base import LLMProvider
+from companion.providers.llm_base import LLMProvider
 
 # Canned JSON returned for hypothetical-questions prompts.
 _MOCK_QUESTIONS_JSON = (
