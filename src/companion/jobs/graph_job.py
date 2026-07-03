@@ -1,0 +1,1 @@
+# precomputa grafo de personajes → graph.json

@@ -1,0 +1,1 @@
+# NarrativeChunker: párrafo → Chunk con char_start/end

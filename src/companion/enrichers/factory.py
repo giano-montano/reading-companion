@@ -1,0 +1,1 @@
+# get_enricher() → SummaryEnricher únicamente

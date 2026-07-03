@@ -1,0 +1,1 @@
+# parse_json_or_lines(raw, n) → list[str]

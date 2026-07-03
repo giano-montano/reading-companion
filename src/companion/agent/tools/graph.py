@@ -1,0 +1,1 @@
+# GRAFO (consulta graph.json con filtro anti-spoiler)

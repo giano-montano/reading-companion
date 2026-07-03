@@ -1,0 +1,1 @@
+# AgentState: historial + pending_question flag

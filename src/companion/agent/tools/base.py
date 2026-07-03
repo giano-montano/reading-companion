@@ -1,0 +1,1 @@
+# Tool ABC: execute(chunks, state) → ToolResult

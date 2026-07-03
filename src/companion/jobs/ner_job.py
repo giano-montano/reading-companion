@@ -1,0 +1,1 @@
+# precomputa entidades por chunk → entity_store.json

@@ -1,0 +1,1 @@
+# ScopeResolver: viewport → list[Chunk]
