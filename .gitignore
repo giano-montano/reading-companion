@@ -16,3 +16,4 @@ data/obras/*.json
 Thumbs.db
 .vscode/
 .idea/
+chats/
