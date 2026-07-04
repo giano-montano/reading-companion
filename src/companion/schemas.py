@@ -27,7 +27,7 @@ class Document(BaseModel):
 
 class Chunk(BaseModel):
     """A contiguous slice of a Document produced by a Chunker."""
-    chunk_id: str = Field(default_factory=_uuid)
+    chunk_id: str = Field(default_factory=_uuid) # falta tener conciencia de temporalidad, 1, 2 ,3 para evitar spoilers en QA RAG
     doc_id: str
     text: str
     chunk_index: int
