@@ -17,3 +17,16 @@ Thumbs.db
 .vscode/
 .idea/
 chats/
+
+# Generated image outputs
+generated_images/
+generated_images_benchmark/
+generated_storyboards/
+generated_visuals/
+
+# Generated image archives
+generated_images*.zip
+generated_storyboards*.zip
+
+# Test payloads / local API payloads
+payload_*.json

@@ -31,7 +31,7 @@ class NvidiaLLMProvider(LLMProvider):
             lambda: self._client.chat.completions.create(
                 model=self.model,
                 messages=[{"role": "user", "content": prompt}],
-                temperature: float =0.2,
+                temperature=0.2,
                 max_tokens=1024,
             ).choices[0].message.content or ""
         )
