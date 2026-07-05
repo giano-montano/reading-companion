@@ -29,6 +29,15 @@ class Settings(BaseSettings):
     nvidia_model: str = Field("deepseek-ai/deepseek-v4-flash")
     nvidia_base_url: str = Field("https://integrate.api.nvidia.com/v1")
 
+    # Image generation - Cloudflare
+    cloudflare_api_token: str | None = Field(None)
+    cloudflare_account_id: str | None = Field(None)
+    cloudflare_image_model: str = Field("@cf/black-forest-labs/flux-2-klein-9b")
+
+    # Visual support
+    visual_output_dir: str = Field("./generated_visuals")
+    visual_mock_enabled: bool = Field(False)
+
     router_model:  str = Field("meta/llama-3.1-8b-instruct")
     content_model: str = Field("meta/llama-3.3-70b-instruct")
 
