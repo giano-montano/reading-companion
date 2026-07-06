@@ -56,36 +56,49 @@ def _normalize_text(s: str) -> str:
     return s
 
 
+def _strip_attrs(html: str) -> str:
+    """Remove all attributes (class, id, style, ...) from every opening tag."""
+    import re
+    return re.sub(r"<\s*([a-zA-Z0-9]+)(?:\s[^>]*)?(\s*/?)>", r"<\1\2>", html)
+
+
 def _html_for_element(el) -> str:
     """
-    Return the small sanitized HTML fragment for a block-level element.
+    Return the sanitized HTML fragment for a block-level element.
 
-    Strategy: keep the element itself if it's an allowed block tag, with its
-    full inner content.  Inline tags allowed per `data/master/master.md`
-    (`em`, `strong`, `br`, etc.) are preserved as-is; other inline tags are
-    unwrapped (kept their text).  `<hr>` and empty `<p>` are emitted as-is
-    when applicable.
+    Rules:
+      * Strip ALL attributes (class, id, style, etc.) from every tag.
+      * Unwrap <span> (keep only its text descendants).
+      * Keep inline semantics: <em>, <strong> (attributes stripped).
+      * Keep block tags: <h1>-<h3>, <p>, <blockquote>, <nav>, <hr>.
+      * Everything else is unwrapped (text descendants kept).
     """
+    _unwrap = {"span"}
+    _inline = {"em", "strong", "b", "i", "a", "small", "sup", "sub", "br"}
     name = (el.name or "").lower()
     if name == "hr":
         return "<hr/>"
     if name in {"h1", "h2", "h3", "blockquote", "p", "nav"}:
-        # Walk children, dropping tags not in allowed/inline, unwrapping their
-        # text content.
-        cleaned: list[str] = []
+        parts: list[str] = []
         for child in el.children:
-            if getattr(child, "name", None) is None:
-                cleaned.append(str(child))
+            child_name = getattr(child, "name", None)
+            if child_name is None:
+                parts.append(str(child))
                 continue
-            tag = child.name.lower()
-            if tag in _ALLOWED_TAGS or tag in _INNER_ONLY:
-                cleaned.append(str(child))
-            else:
-                # unwrap: keep text descendants
+            tag = child_name.lower()
+            if tag in _inline:
+                parts.append(_strip_attrs(str(child)))
+            elif tag in _unwrap:
                 for sub in child.descendants:
                     if getattr(sub, "name", None) is None:
-                        cleaned.append(str(sub))
-        inner = "".join(cleaned).strip()
+                        parts.append(str(sub))
+                    elif getattr(sub, "name", "").lower() in _inline:
+                        parts.append(_strip_attrs(str(sub)))
+            else:
+                for sub in child.descendants:
+                    if getattr(sub, "name", None) is None:
+                        parts.append(str(sub))
+        inner = "".join(parts).strip()
         if not inner:
             return ""
         return f"<{name}>{inner}</{name}>"
