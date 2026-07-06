@@ -9,32 +9,31 @@ por libro. Cada libro se identifica por su `book_id` (string global estable).
 data/
   source/                                  EPUBs originales (sin modificar)
     La_Metamorfosis-Kafka_Franz.epub
-    El_principito_*.epub
+    Las_aventuras_de_Tom_Sawyer-Mark_Twain.epub
     ...
 
   master/                                  Masters: uno por libro, aplanado
     la_metamorfosis_es.master.json
-    el_principito_es.master.json
+    las_aventuras_de_tom_sawyer_es.master.json
     ...
     master.md                              (este archivo: documentación del schema)
 
   outputs/
-    readers/                               Readers: una carpeta por libro
-      la_metamorfosis_es/
-        reader.json
-      el_principito_es/
-        reader.json
+    readers/                               Readers: un archivo por libro
+      la_metamorfosis_es.reader.json
+      las_aventuras_de_tom_sawyer_es.reader.json
       ...
       reader.md                            (documentación del schema)
 
-    retrievals/                            Retrievals: una carpeta por libro
-      la_metamorfosis_es/
-        retrieval.jsonl
-      el_principito_es/
-        retrieval.jsonl
+    retrievals/                            Retrievals: un archivo por libro
+      la_metamorfosis_es.retrieval.jsonl
+      las_aventuras_de_tom_sawyer_es.retrieval.jsonl
       ...
       retrievals.md                        (documentación del schema)
 ```
+
+No hay subcarpetas por libro: los outputs son **derivados puros** del
+master y se regeneran cada vez. El master es la única fuente editable.
 
 ## Flujo general
 
@@ -43,14 +42,15 @@ data/source/<epub>                                (entrada, no se modifica)
         ↓
 data/master/<book_id>.master.json                 (fuente de verdad editable)
         ↓
-data/outputs/readers/<book_id>/reader.json        → frontend
-data/outputs/retrievals/<book_id>/retrieval.jsonl → embeddings y base vectorial
+data/outputs/readers/<book_id>.reader.json        → frontend
+data/outputs/retrievals/<book_id>.retrieval.jsonl → embeddings y base vectorial
 ```
 
-`book.master.json` es la fuente de verdad. El frontend consume `reader.json`
-y el pipeline RAG consume `retrieval.jsonl`. Ninguno de los outputs debe
-editarse a mano como fuente principal; los cambios estructurales se hacen en
-el master y luego se regeneran.
+`book.master.json` es la fuente de verdad. El frontend consume
+`<book_id>.reader.json` y el pipeline RAG consume
+`<book_id>.retrieval.jsonl`. Ambos son **100 % derivables del master**;
+nunca se editan a mano como fuente principal. Los cambios estructurales se
+hacen en el master y luego se regeneran.
 
 ## `source/`
 
@@ -156,10 +156,10 @@ Ejemplo:
 
 ### `book_id`
 
-Se define manualmente antes de procesar el libro. Es el nombre del
-archivo master (sin la extensión `.master.json`) y de la carpeta del
-reader/retrieval. Debe ser estable y no cambiar después de publicar el
-libro.
+Se define manualmente antes de procesar el libro. Es el prefijo de los
+tres archivos por libro: `<book_id>.master.json`, `<book_id>.reader.json`
+y `<book_id>.retrieval.jsonl`. Debe ser estable y no cambiar después de
+publicar el libro.
 
 ```text
 el_principito_es

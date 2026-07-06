@@ -4,12 +4,12 @@ BookBuilder — orchestrate the full book-preprocessing pipeline.
   EpubBookLoader → CheckpointResolver (optional) → assign section_ids →
   [NarrativeChunker] → master / reader / retrieval.
 
-Output layout (flat, no per-book folder; see `data/estructura.md`):
+Output layout (FLAT — no per-book subfolders; see `data/estructura.md`):
 
   <data_dir>/
     master/<book_id>.master.json
-    outputs/readers/<book_id>/reader.json
-    outputs/retrievals/<book_id>/retrieval.jsonl
+    outputs/readers/<book_id>.reader.json
+    outputs/retrievals/<book_id>.retrieval.jsonl
 
 Sections (pausas pedagógicas) are MANUAL by default.  Pass
 `--checkpoints=none` (default) to produce a master with all
@@ -89,8 +89,8 @@ def build_book(
 ) -> BuildResult:
     base = Path(data_dir)
     master_path = base / "master" / f"{book_id}.master.json"
-    reader_path = base / "outputs" / "readers" / book_id / "reader.json"
-    retrieval_path = base / "outputs" / "retrievals" / book_id / "retrieval.jsonl"
+    reader_path = base / "outputs" / "readers" / f"{book_id}.reader.json"
+    retrieval_path = base / "outputs" / "retrievals" / f"{book_id}.retrieval.jsonl"
     for p in (master_path, reader_path, retrieval_path):
         p.parent.mkdir(parents=True, exist_ok=True)
 

@@ -8,16 +8,19 @@
 
 Un pipeline que toma un EPUB (`data/source/<epub>`) y produce los 3 outputs
 del flujo acordado en `data/estructura.md` con **estructura plana por tipo de
-artefacto** (no por libro):
+artefacto, sin subcarpetas por libro**:
 
 ```
 data/source/<epub>                              (entrada; no se modifica)
 data/master/<book_id>.master.json               (fuente de verdad editable)
-data/outputs/readers/<book_id>/reader.json      (frontend)
-data/outputs/retrievals/<book_id>/retrieval.jsonl  (RAG)
+data/outputs/readers/<book_id>.reader.json      (frontend; derivado puro)
+data/outputs/retrievals/<book_id>.retrieval.jsonl  (RAG; derivado puro)
 
 data/master/<book_id>.checkpoints.json          (opcional; pausas pedagógicas a mano)
 ```
+
+`reader.json` y `retrieval.jsonl` son **100 % derivables** del master; nunca
+se editan a mano.
 
 Libro piloto de esta iteración: `la_metamorfosis_es` (Kafka, 3 capítulos).
 
