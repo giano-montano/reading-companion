@@ -42,11 +42,15 @@ class BookChunk(BaseModel):
     """
     Retrieval unit.  May span multiple sections; `section_ids` lists them in
     reading order, without nulls.
+
+    `start_block_id` / `end_block_id` are used internally by the chunker
+    to build the block->chunk mapping; they are excluded from the published
+    JSON (see master_writer.py).  Anti-spoiler is done by chunk_id.
     """
     id: int
     section_ids: list[int] = Field(default_factory=list)
-    start_block_id: int
-    end_block_id: int
+    start_block_id: int = 0
+    end_block_id: int = 0
     text: str
     char_start: int
     char_end: int

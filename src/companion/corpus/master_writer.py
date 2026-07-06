@@ -26,6 +26,7 @@ def write_book_master(master: BookMaster, out_path: str) -> Path:
                 "content": b.content,
                 "text": b.text,
                 "chunk_id": b.chunk_id,
+                "is_narrative": b.is_narrative,
             }
             for b in master.blocks
         ],

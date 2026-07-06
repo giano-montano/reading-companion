@@ -48,3 +48,19 @@ def canonical_slice_for_chunk(chunks: list[BookChunk], idx: int) -> str:
 def _token_count(text: str) -> int:
     # proxy: words × 1.3 — good enough for Spanish at MVP scale
     return int(round(len(text.split()) * 1.3))
+
+
+def validate_offsets(master: BookMaster) -> None:
+    """
+    Assert that canonical[chunk.char_start:chunk.char_end] == chunk.text
+    for every chunk.  Raises AssertionError with the first mismatch.
+    """
+    canonical = build_canonical_text(master.chunks)
+    for c in master.chunks:
+        slice_ = canonical[c.char_start : c.char_end]
+        if slice_ != c.text:
+            raise AssertionError(
+                f"Chunk {c.id} offset mismatch: "
+                f"canonical[{c.char_start}:{c.char_end}] != chunk.text. "
+                f"Got {slice_[:80]!r}... expected {c.text[:80]!r}..."
+            )
