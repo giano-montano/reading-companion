@@ -25,9 +25,8 @@ Available strategies, swappable via CLI / constructor:
     Anything before the first `start_block_id` keeps `section_id = None`
     (cover / front matter).
 
-The resolver never splits blocks — that's `block_splitting.py`'s job.  It
-only returns the *desired* start_block_id per section; BookBuilder
-reconciles.
+The resolver never splits blocks.  It only returns the *desired*
+start_block_id per section; BookBuilder reconciles.
 """
 from __future__ import annotations
 

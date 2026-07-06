@@ -18,7 +18,7 @@ Dos LLM en NVIDIA NIM: **router 8B** (clasifica intención) + **content 70B**
 fuente de verdad viva de decisiones, diseño, tensiones y puntos de cableado
 abiertos. Está por encima de cualquier suposición sacada del código.
 
-- Handoff actual: [`agente_log/2026-07-05-contratos-scope-router.md`](agente_log/2026-07-05-contratos-scope-router.md)
+- Handoff actual: [`agente_log/2026-07-05-preprocessing-pipeline.md`](agente_log/2026-07-05-preprocessing-pipeline.md)
 - **Si cambias un contrato o tomas una decisión de arquitectura, escríbela en un
   handoff nuevo (o actualiza el vigente) EN EL MISMO COMMIT.** Un cambio de
   contrato sin registro es un bug para el resto del equipo.
