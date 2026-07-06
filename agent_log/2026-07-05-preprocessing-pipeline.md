@@ -41,27 +41,22 @@ Libro piloto de esta iteración: `la_metamorfosis_es` (Kafka, 3 capítulos).
    es `f"{book_id}::chunk_{i}::text"` (string) o `::question_{j}` — el mapping
    lo hace el indexador, no el master. Esto evita tocar `Chunk` de `schemas.py`.
 
-5. **No tocamos** la ABC `CorpusLoader` (queda para el F1 de textos `.txt`).
-   El preprocessing de libros es una familia nueva: `EpubBookLoader` y
-   `BookBuilder` en `companion/corpus/`, que producen `BookMaster` (modelo
-   nuevo) en vez de `Iterator[Document]`.
-
-6. **`BookMaster`** = nuevo modelo pydantic en `companion/corpus/book_master.py`
+5. **`BookMaster`** = nuevo modelo pydantic en `companion/corpus/book_master.py`
    que refleja EXACTAMENTE `data/master/master.md`. Los schemas en
    `companion/schemas.py` no se tocan (Chang es dueño).
 
-7. **Estructura de directorios plana** (decisión 2026-07-05). Ya no existe
+6. **Estructura de directorios plana** (decisión 2026-07-05). Ya no existe
    `data/books/<book_id>/`. Los archivos se organizan por tipo:
    `data/master/`, `data/outputs/readers/`, `data/outputs/retrievals/`.
 
-8. **Secciones (pausas pedagógicas) son manuales** (decisión 2026-07-05).
+7. **Secciones (pausas pedagógicas) son manuales** (decisión 2026-07-05).
    El default (`--checkpoints=none`) produce un master con `sections: []` y
    todos los `block.section_id = null`. Para marcar pausas, el usuario
    crea un `data/master/<book_id>.checkpoints.json` y re-corre el pipeline
    con `--checkpoints=json --checkpoints-json=...`. El `HeuristicCheckpointResolver`
    existe solo para exploración y emite un warning al activarse.
 
-9. **Año de publicación es manual** (decisión 2026-07-05). Prioridad:
+8. **Año de publicación es manual** (decisión 2026-07-05). Prioridad:
    `--year` (CLI) > DC date del EPUB (si válida, rango 1000-año_actual+1) >
    ERROR. El script **nunca** improvisa un año.
 
@@ -78,14 +73,6 @@ Libro piloto de esta iteración: `la_metamorfosis_es` (Kafka, 3 capítulos).
 3. **Limpieza de texto**: en cada bloque, reemplazar `\xad` (soft hyphen) y
    colapsar whitespace al final. No tocamos mayúsculas ni acentos.
 
-4. **Estrategia de checkpoints (parametrizable)** en `companion/corpus/checkpoints.py`:
-   - `--checkpoints=none` (default): no se marcan secciones. Master con
-     `sections: []` y `block.section_id = null`.
-   - `--checkpoints=json`: lee un archivo JSON con la forma
-     `{"sections": [{"start_block_id": N, "note": "..."}, ...]}` y aplica
-     exactamente eso. `note` es opcional.
-   - `--checkpoints=heuristic`: cada `<h1>` o `<h2>` no vacío abre sección.
-     Emite warning de "esto NO son pausas pedagógicas".
 
 5. **Estrategia de chunking** (parametrizable en `companion/chunkers/narrative.py`):
    - Target 220–320 tokens; mín 80–120; máx 400; flexible 500.
