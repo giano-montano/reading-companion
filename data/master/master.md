@@ -105,8 +105,6 @@ Esto permite que el profesor coloque checkpoints pedagógicos sin deformar artif
     {
       "id": 1,
       "section_ids": [1, 2],
-      "start_block_id": 4,
-      "end_block_id": 7,
       "text": "Cuando yo tenía seis años vi una vez una lámina magnífica... Mi dibujo no representaba un sombrero... Las personas mayores me aconsejaron dejar a un lado los dibujos...",
       "char_start": 0,
       "char_end": 245
@@ -114,8 +112,6 @@ Esto permite que el profesor coloque checkpoints pedagógicos sin deformar artif
     {
       "id": 2,
       "section_ids": [2],
-      "start_block_id": 8,
-      "end_block_id": 8,
       "text": "Viví así solo, sin nadie con quien poder hablar verdaderamente...",
       "char_start": 247,
       "char_end": 320
@@ -291,13 +287,14 @@ Un chunk es una unidad de texto limpio usada por el RAG.
 {
   "id": 1,
   "section_ids": [1, 2],
-  "start_block_id": 4,
-  "end_block_id": 7,
   "text": "Cuando yo tenía seis años...",
   "char_start": 0,
   "char_end": 245
 }
 ```
+
+La relación bloque → chunk se infiere de `blocks[].chunk_id`.  El
+`chunk_id` de cada bloque es el `id` del chunk que lo contiene.
 
 `section_ids` contiene los IDs únicos de las secciones narrativas presentes en el chunk, respetando el orden de lectura.
 

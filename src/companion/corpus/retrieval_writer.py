@@ -107,8 +107,6 @@ def write_retrieval(
                 "metadata": {
                     "book_id": master.book_id,
                     "section_ids": chunk.section_ids,
-                    "start_block_id": chunk.start_block_id,
-                    "end_block_id": chunk.end_block_id,
                 },
             }
             f.write(json.dumps(record, ensure_ascii=False) + "\n")

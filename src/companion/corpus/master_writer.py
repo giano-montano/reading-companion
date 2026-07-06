@@ -24,16 +24,15 @@ def write_book_master(master: BookMaster, out_path: str) -> Path:
                 "id": b.id,
                 "section_id": b.section_id,
                 "content": b.content,
+                "text": b.text,
                 "chunk_id": b.chunk_id,
             }
             for b in master.blocks
-        ],  # text/is_narrative/token_count are derived, not published
+        ],
         "chunks": [
             {
                 "id": c.id,
                 "section_ids": c.section_ids,
-                "start_block_id": c.start_block_id,
-                "end_block_id": c.end_block_id,
                 "text": c.text,
                 "char_start": c.char_start,
                 "char_end": c.char_end,

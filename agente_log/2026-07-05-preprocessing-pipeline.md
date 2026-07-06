@@ -107,6 +107,9 @@ master / reader / retrieval writers
 
 ## Runbook
 
+
+## Runbook
+
 ```bash
 # preprocess (EPUB -> master + reader + retrieval):
 .venv\Scripts\python.exe -m companion.cli.preprocess \
@@ -123,9 +126,42 @@ master / reader / retrieval writers
     --checkpoints-json=data/master/la_metamorfosis_es.checkpoints.json
 ```
 
+## Regla de unión de texto (decisión 2026-07-06)
+
+El texto de un chunk se construye uniendo los `text` de sus bloques
+narrativos con `\n\n`:
+
+    chunk.text = "\n\n".join(b.text for b in blocks if b.chunk_id == chunk.id)
+
+Esta misma regla se aplica en todos lados:
+  * El chunker (`_join_text` en `chunkers/narrative.py`).
+  * El backend en runtime, para construir el fragmento visible.
+
+El `reader.json` incluye `text` en cada bloque (plano, sin HTML).
+Para el fragmento visible del chunk actual:
+
+    "\n\n".join(
+        block["text"]
+        for block in reader["blocks"]
+        if block["chunk_id"] == current_chunk_id
+        and block["id"] <= current_block_id
+    )
+
+## Anti-spoiler por chunk_id (decisión 2026-07-06)
+
+No se usa `start_block_id`/`end_block_id` para el gate anti-spoiler.
+La estrategia es por `chunk_id` (auto-incremental, orden de lectura):
+
+    chunks con id < current_chunk_id  -> completos (chunk.text entero)
+    chunk  con id == current_chunk_id -> parcial (bloques hasta current_block_id)
+    chunks con id > current_chunk_id  -> no se usan
+
+Por eso los campos `start_block_id` y `end_block_id` se eliminaron del
+`master.json` (chunks) y del `retrieval.jsonl` (metadata).  La relación
+bloque → chunk se infiere de `blocks[].chunk_id`.
+
 ## Decisiones abiertas / próximas sesiones
 
-- ¿`NarrativeChunker` se reescribe con cierre por distancia al target
-  + `BlockSplitter` upstream? (Aplazado.)
-- ¿Migrar embeddings a E5 (`intfloat/multilingual-e5-base`)? (Aplazado.)
-- ¿Indexar en ChromaDB? (Aplazado — el usuario borró `chroma_db/`.)
+- NarrativeChunker con cierre por distancia al target + BlockSplitter.
+- Migrar embeddings a E5.
+- Indexar en ChromaDB.

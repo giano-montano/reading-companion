@@ -36,6 +36,7 @@ def write_reader(master: BookMaster, out_path: str) -> Path:
             "id": b.id,
             "section_id": b.section_id,
             "content": b.content,
+            "text": b.text,
             "chunk_id": b.chunk_id,
         }
         for b in master.blocks
