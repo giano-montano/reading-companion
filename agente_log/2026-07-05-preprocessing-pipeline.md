@@ -7,17 +7,16 @@
 ## Qué construimos
 
 Un pipeline que toma un EPUB (`data/source/<epub>`) y produce los 3 outputs
-del flujo acordado en `data/estructura.md`:
+del flujo acordado en `data/estructura.md` con **estructura plana por tipo de
+artefacto** (no por libro):
 
 ```
-data/books/<book_id>/
-  source/original.epub
-  preprocessing/
-    book.master.json
-    checkpoints.json            (opcional; override manual de checkpoints)
-  prepared/
-    reader/reader.json
-    retrieval/retrieval.jsonl
+data/source/<epub>                              (entrada; no se modifica)
+data/master/<book_id>.master.json               (fuente de verdad editable)
+data/outputs/readers/<book_id>/reader.json      (frontend)
+data/outputs/retrievals/<book_id>/retrieval.jsonl  (RAG)
+
+data/master/<book_id>.checkpoints.json          (opcional; pausas pedagógicas a mano)
 ```
 
 Libro piloto de esta iteración: `la_metamorfosis_es` (Kafka, 3 capítulos).
@@ -28,7 +27,9 @@ Libro piloto de esta iteración: `la_metamorfosis_es` (Kafka, 3 capítulos).
    secciones — eso ya está en `master.md` actualizado. Reflejado en `BookChunk`.
 
 2. **`book_id`** = snake_case del título en español. Para La Metamorfosis:
-   `la_metamorfosis_es`. Estable; no cambia tras publicar.
+   `la_metamorfosis_es`. Estable; no cambia tras publicar. Coincide con el
+   nombre del archivo master (`<book_id>.master.json`) y con el nombre de la
+   carpeta de reader/retrieval.
 
 3. **Secuencia de IDs** = enteros autoincrementales por libro, partiendo en 1.
    `section_id`, `block_id`, `chunk_id` se asignan en orden de lectura.
@@ -46,6 +47,21 @@ Libro piloto de esta iteración: `la_metamorfosis_es` (Kafka, 3 capítulos).
    que refleja EXACTAMENTE `data/master/master.md`. Los schemas en
    `companion/schemas.py` no se tocan (Chang es dueño).
 
+7. **Estructura de directorios plana** (decisión 2026-07-05). Ya no existe
+   `data/books/<book_id>/`. Los archivos se organizan por tipo:
+   `data/master/`, `data/outputs/readers/`, `data/outputs/retrievals/`.
+
+8. **Secciones (pausas pedagógicas) son manuales** (decisión 2026-07-05).
+   El default (`--checkpoints=none`) produce un master con `sections: []` y
+   todos los `block.section_id = null`. Para marcar pausas, el usuario
+   crea un `data/master/<book_id>.checkpoints.json` y re-corre el pipeline
+   con `--checkpoints=json --checkpoints-json=...`. El `HeuristicCheckpointResolver`
+   existe solo para exploración y emite un warning al activarse.
+
+9. **Año de publicación es manual** (decisión 2026-07-05). Prioridad:
+   `--year` (CLI) > DC date del EPUB (si válida, rango 1000-año_actual+1) >
+   ERROR. El script **nunca** improvisa un año.
+
 ## Decisiones de implementación
 
 1. **Encoding del EPUB**: el de La Metamorfosis declara `utf-8` pero está en
@@ -60,24 +76,16 @@ Libro piloto de esta iteración: `la_metamorfosis_es` (Kafka, 3 capítulos).
    colapsar whitespace al final. No tocamos mayúsculas ni acentos.
 
 4. **Estrategia de checkpoints (parametrizable)** en `companion/corpus/checkpoints.py`:
-   - `HeuristicCheckpointResolver` (default): cada `<h1>` o `<h2>` no vacío
-     marca un nuevo checkpoint. Los bloques con `section_id: null` (portada,
-     título, créditos) se asignan como `null`.
-   - `JsonCheckpointResolver`: lee `data/books/<id>/preprocessing/checkpoints.json`
-     con la forma `{ "sections": [ {"start_block_id": N}, ... ] }` y aplica el
-     override.
-   - Intercambiables vía el flag `--checkpoints=heuristic|json`.
+   - `--checkpoints=none` (default): no se marcan secciones. Master con
+     `sections: []` y `block.section_id = null`.
+   - `--checkpoints=json`: lee un archivo JSON con la forma
+     `{"sections": [{"start_block_id": N, "note": "..."}, ...]}` y aplica
+     exactamente eso. `note` es opcional.
+   - `--checkpoints=heuristic`: cada `<h1>` o `<h2>` no vacío abre sección.
+     Emite warning de "esto NO son pausas pedagógicas".
 
-5. **División de bloques** (parametrizable en `companion/corpus/block_splitting.py`):
-   - `--split-blocks/--no-split-blocks`. Default: ON.
-   - Si un checkpoint cae dentro de un bloque `<p>`, lo parte por oración
-     (heurística simple: split en `. `, `? `, `! `).
-   - Si el bloque no se puede partir limpiamente, se deja entero y se avisa
-     (no es error).
-
-6. **Estrategia de chunking** (parametrizable en `companion/chunkers/narrative.py`):
-   - Target 220–320 tokens; mín 80–120; máx 400; flexible 500. (definido en
-     `data/master/master.md` §"Estrategia de chunking")
+5. **Estrategia de chunking** (parametrizable en `companion/chunkers/narrative.py`):
+   - Target 220–320 tokens; mín 80–120; máx 400; flexible 500.
    - Cierra en límites de párrafo / diálogo.
    - **No cierra en checkpoints** (per `master.md` v2).
    - Si un bloque aislado > max_flexible, se parte por oración antes de añadir.
@@ -85,15 +93,15 @@ Libro piloto de esta iteración: `la_metamorfosis_es` (Kafka, 3 capítulos).
    - Constructor con todos los parámetros: `NarrativeChunker(target_tokens=270,
      min_tokens=100, max_tokens=400, max_flexible_tokens=500)`.
 
-7. **Contador de tokens**: proxy = `len(text.split()) * 1.3`. Suficiente para
+6. **Contador de tokens**: proxy = `len(text.split()) * 1.3`. Suficiente para
    español; no añadimos `tiktoken`.
 
-8. **Texto canónico** (en `companion/corpus/canonical_text.py`):
+7. **Texto canónico** (en `companion/corpus/canonical_text.py`):
    `"\n\n".join(chunk.text for chunk in chunks)`. El `char_start`/`char_end`
    se calculan sobre este string. Es la única normalización — si cambia, se
    invalidan todos los offsets persistidos en Chroma (contrato #1).
 
-9. **Preguntas hipotéticas** (en `companion/corpus/retrieval_writer.py`):
+8. **Preguntas hipotéticas** (en `companion/corpus/retrieval_writer.py`):
    - 5 por chunk. Prompt en español; espera JSON array de 5 strings.
    - Usa `MockLLMProvider` por default (sin API key). El `MockLLMProvider`
      ya tiene un canned para "array json".
@@ -110,13 +118,37 @@ Libro piloto de esta iteración: `la_metamorfosis_es` (Kafka, 3 capítulos).
 
 ## Puntos de verificación para Chang (humano)
 
-1. **Después de Fase 1 (master borrador)**: revisar `book.master.json` →
-   ¿la lista de bloques y las secciones reflejan lo que tú querés? ¿Falta
-   algún título, sobra algún bloque?
-2. **Después de Fase 2 (chunks)**: revisar `chunks[]` y `blocks[].chunk_id` →
-   ¿los tamaños son razonables? ¿los chunks respetan la lectura (no parten
-   a la mitad de un diálogo)?
-3. **Después de Fase 3 (reader.json)**: abrir el json y validar visualmente
-   que `sections[].start_block_id` y `end_block_id` están bien asignados.
-4. **Después de Fase 4 (retrieval.jsonl)**: validar que las preguntas
-   hipotéticas son variadas y útiles; las 5 por chunk.
+1. **Master sin secciones (default)**: `data/master/<book_id>.master.json` →
+   confirmar `sections: []` y todos `block.section_id = null`. Decidir dónde
+   van las pausas pedagógicas.
+2. **Chunks y offsets**: revisar `chunks[]` y `blocks[].chunk_id` → ¿los
+   tamaños son razonables? ¿los offsets satisfacen
+   `canonical[char_start:char_end] == text`?
+3. **Reader**: `data/outputs/readers/<book_id>/reader.json` → si no hay
+   secciones, `sections: []` y no hay checkpoints. Si las marcaste con
+   `checkpoints.json`, validar que `start_block_id`/`end_block_id` están
+   bien asignados.
+4. **Retrieval**: `data/outputs/retrievals/<book_id>/retrieval.jsonl` → validar
+   que las preguntas hipotéticas son variadas y útiles; las 5 por chunk.
+
+## Runbook
+
+```bash
+# sin pausas, año del EPUB (o error si no tiene):
+.venv\Scripts\python.exe -m companion.cli.preprocess \
+    La_Metamorfosis-Kafka_Franz.epub \
+    --book-id la_metamorfosis_es
+
+# con pausas manuales y año fijo:
+.venv\Scripts\python.exe -m companion.cli.preprocess \
+    La_Metamorfosis-Kafka_Franz.epub \
+    --book-id la_metamorfosis_es \
+    --year 1915 \
+    --checkpoints=json \
+    --checkpoints-json=data/master/la_metamorfosis_es.checkpoints.json
+
+# exploración (warning de "no son pausas pedagógicas"):
+.venv\Scripts\python.exe -m companion.cli.preprocess \
+    La_Metamorfosis-Kafka_Franz.epub \
+    --book-id la_metamorfosis_es --checkpoints=heuristic
+```

@@ -2,29 +2,44 @@
 Checkpoint resolvers — decide where pedagogical sections (and thus
 checkpoints) fall in the book.
 
-Two strategies, swappable via CLI / constructor:
+IMPORTANT (per Chang, 2026-07-05): sections are NOT book chapters.  They
+are manual *pausas pedagógicas* marked by the teacher.  The default flow
+produces a master with `sections: []` and every `block.section_id = None`.
+The resolver in this file is OPT-IN.
 
-  * HeuristicCheckpointResolver (default): any <h1> or <h2> with non-empty
-    text opens a new section.  Blocks before the first heading are
-    `section_id = None` (cover, title page, index).
+Available strategies, swappable via CLI / constructor:
 
-  * JsonCheckpointResolver: read `data/books/<book_id>/preprocessing/
-    checkpoints.json` with shape
-        {"sections": [{"start_block_id": 4}, {"start_block_id": 80}, ...]}
-    and apply exactly that.  Anything before the first listed start_block_id
-    is section_id = None.
+  * HeuristicCheckpointResolver — every <h1> or <h2> with non-empty text
+    opens a new section.  EMITS A WARNING that this is only a guess based
+    on the EPUB's own chapter structure, not a pedagogical decision.  Use
+    it only to explore a book; the real pausas must be marked by hand.
 
-The resolver never splits blocks — that's `block_splitting.py`'s job.  It only
-returns the *desired* start_block_id per section; BookBuilder reconciles.
+  * JsonCheckpointResolver — read `data/<book_id>/checkpoints.json` (or
+    any path you pass) with shape
+        {"sections": [
+            {"id": 1, "start_block_id": 4,  "note": "Pausa tras ..."},
+            {"id": 2, "start_block_id": 78, "note": "Pausa tras ..."}
+        ]}
+    `id` and `note` are optional; `start_block_id` is required.  If `id`
+    is missing, sections are numbered 1, 2, 3... in the order they appear.
+    Anything before the first `start_block_id` keeps `section_id = None`
+    (cover / front matter).
+
+The resolver never splits blocks — that's `block_splitting.py`'s job.  It
+only returns the *desired* start_block_id per section; BookBuilder
+reconciles.
 """
 from __future__ import annotations
 
 import json
+import logging
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from pathlib import Path
 
 from companion.corpus.epub_loader import RawBlock
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -32,6 +47,7 @@ class SectionPlan:
     """A planned section.  `start_block_id` is the first block IN the section."""
     id: int
     start_block_id: int
+    note: str = ""
 
 
 class CheckpointResolver(ABC):
@@ -45,15 +61,23 @@ class HeuristicCheckpointResolver(CheckpointResolver):
     A new section starts at every <h1> or <h2> with non-empty text.
     Headers are themselves part of the section (so the title of Cap. 1 has
     `section_id = 1`).
+
+    This is NOT a pedagogical decision.  It mirrors the EPUB's own chapter
+    structure.  Use only to explore; the real pausas must be marked by
+    hand via `JsonCheckpointResolver`.
     """
 
     def resolve(self, blocks: list[RawBlock]) -> list[SectionPlan]:
+        logger.warning(
+            "HeuristicCheckpointResolver is enabled.  These sections are an "
+            "inference from the EPUB's chapter structure, NOT pedagogical "
+            "pausas.  Use --checkpoints=json with a hand-curated "
+            "checkpoints.json for the real ones."
+        )
         starts: list[int] = []
         for b in blocks:
             if b.content.startswith("<h1") or b.content.startswith("<h2"):
                 starts.append(b.id)
-
-        # Dedupe (rare) and ensure monotonically increasing
         starts = sorted(set(starts))
         return [SectionPlan(id=i + 1, start_block_id=sid) for i, sid in enumerate(starts)]
 
@@ -69,15 +93,24 @@ class JsonCheckpointResolver(CheckpointResolver):
         sections = data.get("sections") or []
         if not isinstance(sections, list) or not sections:
             raise ValueError("checkpoints.json: 'sections' must be a non-empty list")
-        starts: list[int] = []
-        for entry in sections:
+        plans: list[SectionPlan] = []
+        for i, entry in enumerate(sections, start=1):
             if not isinstance(entry, dict) or "start_block_id" not in entry:
                 raise ValueError(
                     f"checkpoints.json: each entry needs 'start_block_id', got {entry!r}"
                 )
-            starts.append(int(entry["start_block_id"]))
-        starts = sorted(set(starts))
-        self._plans = [SectionPlan(id=i + 1, start_block_id=sid) for i, sid in enumerate(starts)]
+            plans.append(
+                SectionPlan(
+                    id=int(entry.get("id", i)),
+                    start_block_id=int(entry["start_block_id"]),
+                    note=str(entry.get("note", "")),
+                )
+            )
+        plans.sort(key=lambda p: p.start_block_id)
+        # Re-number deterministically in reading order (1, 2, 3...).
+        for i, plan in enumerate(plans, start=1):
+            plan.id = i
+        self._plans = plans
 
     def resolve(self, blocks: list[RawBlock]) -> list[SectionPlan]:
         return list(self._plans)
