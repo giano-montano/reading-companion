@@ -44,10 +44,6 @@ from pathlib import Path
 
 from companion.chunkers.narrative import NarrativeChunker
 from companion.corpus.book_builder import build_book
-from companion.corpus.checkpoints import (
-    HeuristicCheckpointResolver,
-    JsonCheckpointResolver,
-)
 
 logger = logging.getLogger(__name__)
 
@@ -138,23 +134,6 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     )
     p.add_argument("--language", default=None, help="Override language code.")
 
-    p.add_argument(
-        "--checkpoints",
-        choices=("none", "heuristic", "json"),
-        default="none",
-        help=(
-            "How to mark pausas pedagógicas.  'none' (default) leaves every "
-            "block.section_id = null.  'json' loads a hand-curated "
-            "checkpoints.json.  'heuristic' is for exploration only and "
-            "emits a warning."
-        ),
-    )
-    p.add_argument(
-        "--checkpoints-json",
-        default=None,
-        help="Path to checkpoints.json (used when --checkpoints=json).",
-    )
-
     p.add_argument("--chunk-target", type=int, default=270, help="Target tokens per chunk.")
     p.add_argument("--chunk-min", type=int, default=100, help="Minimum tokens per chunk.")
     p.add_argument("--chunk-max", type=int, default=400, help="Soft maximum tokens per chunk.")
@@ -226,16 +205,6 @@ def main(argv: list[str] | None = None) -> int:
         )
         return 2
 
-    if args.checkpoints == "json":
-        if not args.checkpoints_json:
-            print("ERROR: --checkpoints=json requires --checkpoints-json", file=sys.stderr)
-            return 2
-        resolver = JsonCheckpointResolver(args.checkpoints_json)
-    elif args.checkpoints == "heuristic":
-        resolver = HeuristicCheckpointResolver()
-    else:
-        resolver = None  # no sections; manual later
-
     chunker = NarrativeChunker(
         target_tokens=args.chunk_target,
         min_tokens=args.chunk_min,
@@ -251,7 +220,6 @@ def main(argv: list[str] | None = None) -> int:
         author=str(author),
         year=year,
         language=str(language) if language else None,
-        checkpoints=resolver,
         chunker=chunker,
         questions_per_chunk=args.questions_per_chunk,
     )

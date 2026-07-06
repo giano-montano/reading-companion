@@ -1,24 +1,12 @@
 """
 BookBuilder — orchestrate the full book-preprocessing pipeline.
 
-  EpubBookLoader → CheckpointResolver (optional) → assign section_ids →
-  [NarrativeChunker] → master / reader / retrieval.
+  EpubBookLoader → NarrativeChunker → master / reader / retrieval.
 
-Output layout (FLAT — no per-book subfolders; see `data/estructura.md`):
-
-  <data_dir>/
-    master/<book_id>.master.json
-    outputs/readers/<book_id>.reader.json
-    outputs/retrievals/<book_id>.retrieval.jsonl
-
-Sections (pausas pedagógicas) are MANUAL by default.  Pass
-`--checkpoints=none` (default) to produce a master with all
-`blocks[].section_id = null` and `sections: []`.  Use `--checkpoints=json`
-with a hand-curated `checkpoints.json` to mark pausas; the heuristic
-resolver exists for exploration only and emits a warning.
-
-The entrypoint is `build_book(...)`; see `companion/cli/preprocess.py` for
-the CLI wrapper.
+Sections (pausas pedagógicas) are applied AFTER the master is generated,
+via `companion.corpus.sectioner.apply_pauses()`.  The master defaults to
+`sections: []` and every `block.section_id = null`; the user or an agent
+marks the pause spots and re-runs the sectioner to bake them in.
 """
 from __future__ import annotations
 
@@ -29,10 +17,6 @@ from pathlib import Path
 from companion.chunkers.narrative import NarrativeChunker
 from companion.corpus.book_master import BookBlock, BookMaster, BookMetadata, BookSection
 from companion.corpus.canonical_text import recompute_offsets
-from companion.corpus.checkpoints import (
-    CheckpointResolver,
-    assign_section_ids,
-)
 from companion.corpus.epub_loader import EpubBookLoader
 from companion.corpus.master_writer import write_book_master
 from companion.corpus.reader_writer import write_reader
@@ -53,13 +37,13 @@ class BuildResult:
     n_chunks: int
 
 
-def _to_book_blocks(raw, section_map: dict[int, int | None]) -> list[BookBlock]:
+def _to_book_blocks(raw) -> list[BookBlock]:
     out: list[BookBlock] = []
     for r in raw:
         out.append(
             BookBlock(
                 id=r.id,
-                section_id=section_map.get(r.id),
+                section_id=None,
                 content=r.content,
                 text=r.text,
                 chunk_id=None,
@@ -83,7 +67,6 @@ def build_book(
     author: str,
     year: int | None = None,
     language: str | None = None,
-    checkpoints: CheckpointResolver | None = None,
     chunker: NarrativeChunker | None = None,
     questions_per_chunk: int = 5,
 ) -> BuildResult:
@@ -98,19 +81,7 @@ def build_book(
     _header, raw = loader.load()
     logger.info("Loaded %d raw blocks from %s", len(raw), epub_path)
 
-    if checkpoints is not None:
-        plans = checkpoints.resolve(raw)
-        section_pairs = assign_section_ids(raw, plans)
-        section_map = {bid: sid for bid, sid in section_pairs}
-        used = {sid for sid in section_map.values() if sid is not None}
-        section_ids: list[int] = sorted(used)
-        logger.info("Applied %d manual sections.", len(section_ids))
-    else:
-        section_map = {b.id: None for b in raw}
-        section_ids = []
-        logger.info("No checkpoint resolver; all sections will be null.")
-
-    book_blocks = _to_book_blocks(raw, section_map)
+    book_blocks = _to_book_blocks(raw)
     master = BookMaster(
         book_id=book_id,
         metadata=BookMetadata(
@@ -119,7 +90,7 @@ def build_book(
             publication_year=year,
             language=language,
         ),
-        sections=[BookSection(id=sid) for sid in section_ids],
+        sections=[],
         blocks=book_blocks,
         chunks=[],
     )
@@ -140,9 +111,9 @@ def build_book(
         str(retrieval_path),
         questions_per_chunk=questions_per_chunk,
     )
-    logger.info("Wrote master    → %s", master_path)
-    logger.info("Wrote reader    → %s", reader_path)
-    logger.info("Wrote retrieval → %s", retrieval_path)
+    logger.info("Wrote master    -> %s", master_path)
+    logger.info("Wrote reader    -> %s", reader_path)
+    logger.info("Wrote retrieval -> %s", retrieval_path)
 
     return BuildResult(
         book_id=book_id,
