@@ -33,11 +33,13 @@ está por construir.
 
 ## 1. Los 4 contratos que no se rompen (recordatorio)
 
-1. **Texto canónico.** El string de `TextLoader.load()`
-   (`.read_text('utf-8').replace('\r\n','\n').strip()`, ver
-   `src/companion/corpus/text_loader.py`) es EL MISMO que renderiza el frontend.
-   Una sola normalización. Si el chunker aplica otra, los offsets apuntan mal en
-   silencio.
+1. **Texto canónico.** Lo produce `build_canonical_text()` en
+   `src/companion/corpus/canonical_text.py` (= `"\n\n".join(chunk.text)` en orden
+   de lectura). *(Nota 2026-07-07: reemplazó a `TextLoader.load()`, ya
+   eliminado, cuando Chang integró el pipeline de EPUB.)* Es EL MISMO string que
+   renderiza el frontend. Una sola normalización. Si el chunker aplica otra, los
+   offsets apuntan mal en silencio. `recompute_offsets()` los recalcula;
+   `validate_offsets()` asegura `canonical[char_start:char_end] == chunk.text`.
 2. **Offsets absolutos.** `Chunk.char_start` / `char_end` son offsets absolutos
    sobre ese string canónico. Se persisten en metadata de Chroma. Al leerlos:
    `int(meta.get("char_start", 0))`.

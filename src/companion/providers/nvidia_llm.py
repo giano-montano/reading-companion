@@ -25,13 +25,14 @@ class NvidiaLLMProvider(LLMProvider):
             api_key=settings.nvidia_api_key,
         )
         self.model = model
+        self._temperature = temperature
 
     def complete(self, prompt: str) -> str:
         return self._retry(
             lambda: self._client.chat.completions.create(
                 model=self.model,
                 messages=[{"role": "user", "content": prompt}],
-                temperature=0.2,
+                temperature=self._temperature,
                 max_tokens=1024,
             ).choices[0].message.content or ""
         )
@@ -41,7 +42,7 @@ class NvidiaLLMProvider(LLMProvider):
             lambda: self._client.chat.completions.create(
                 model=self.model,
                 messages=messages,  # type: ignore[arg-type]
-                temperature=0.2,
+                temperature=self._temperature,
                 max_tokens=1024,
             ).choices[0].message.content or ""
         )

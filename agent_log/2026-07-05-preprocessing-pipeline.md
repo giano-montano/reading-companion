@@ -1,144 +1,140 @@
 # Handoff — pipeline de preprocessing de libros
 
-**Fecha:** 2026-07-05
+**Fecha:** 2026-07-06
 **Autor:** agente de Chang
-**Estado:** vivo — actualizable en cada commit que toque `data/estructura.md` o `data/master/master.md`
+**Estado:** vivo
 
-## Qué construimos
+## Alcance real (julio 2026)
 
-Un pipeline que toma un EPUB (`data/source/<epub>`) y produce los 3 outputs
-del flujo acordado en `data/estructura.md` con **estructura plana por tipo de
-artefacto, sin subcarpetas por libro**:
+Generar los 3 archivos derivados de un EPUB:
 
 ```
-data/source/<epub>                              (entrada; no se modifica)
-data/master/<book_id>.master.json               (fuente de verdad editable)
+data/source/<epub>
+        ↓
+data/master/<book_id>.master.json               (fuente de verdad)
 data/outputs/readers/<book_id>.reader.json      (frontend; derivado puro)
 data/outputs/retrievals/<book_id>.retrieval.jsonl  (RAG; derivado puro)
-
-data/master/<book_id>.checkpoints.json          (opcional; pausas pedagógicas a mano)
 ```
 
-`reader.json` y `retrieval.jsonl` son **100 % derivables** del master; nunca
-se editan a mano.
+**Fuera de scope** (aplazado para sesiones futuras):
+- Indexación vectorial (ChromaDB). No hay `chroma_db/`.
+- Cambio de modelo de embeddings (se mantiene MiniLM default de F1).
+- `BlockSplitter` — no implementado en esta iteración.
+- E5 prefixes (`passage:` / `query:`) — no implementados.
+- `reindex` CLI — no existe.
 
-Libro piloto de esta iteración: `la_metamorfosis_es` (Kafka, 3 capítulos).
+## Pipeline (simplificado)
 
-## Decisiones de contrato (cambios sobre `data/master/master.md`)
+```
+EpubBookLoader        → 198 RawBlocks (HTML limpio, sin class/id/span)
+        ↓
+_to_book_blocks       → BookBlocks (section_id=null, is_narrative)
+        ↓
+NarrativeChunker      → asigna chunk_id, crea chunks[]
+        ↓
+recompute_offsets     → char_start / char_end sobre texto canónico
+        ↓
+master / reader / retrieval writers
+```
 
-1. **`Chunk.section_ids: list[int]`** (no `int`). Un chunk puede cubrir varias
-   secciones — eso ya está en `master.md` actualizado. Reflejado en `BookChunk`.
+## Código activo en `companion/corpus/`
 
-2. **`book_id`** = snake_case del título en español. Para La Metamorfosis:
-   `la_metamorfosis_es`. Estable; no cambia tras publicar. Coincide con el
-   nombre del archivo master (`<book_id>.master.json`) y con el nombre de la
-   carpeta de reader/retrieval.
+| Archivo | Rol |
+|---|---|
+| `epub_loader.py` | EPUB → RawBlock. HTML sin atributos, sin `<span>`. Fallback utf-8 → latin-1. |
+| `book_master.py` | `BookMaster`, `BookBlock`, `BookChunk` (pydantic v2). `start_block_id`/`end_block_id` opcionales (default 0), no se publican. |
+| `book_builder.py` | Orquestador simple. EPUB → chunk → writers. **Sin lógica de checkpoints.** |
+| `canonical_text.py` | `build_canonical_text()`, `recompute_offsets()`, `validate_offsets()`. |
+| `master_writer.py` | `book.master.json`. Bloques: `id, section_id, content, text, chunk_id, is_narrative`. Chunks: `id, section_ids, text, char_start, char_end`. |
+| `reader_writer.py` | `reader.json`. Bloques: `id, section_id, content, text, chunk_id`. |
+| `retrieval_writer.py` | `retrieval.jsonl`. Metadata: `book_id, section_ids`. |
+| `sectioner.py` | `apply_pauses(master, spots)` — parte bloques, renumera, asigna section_ids, re-corre chunker. Se usa DESPUÉS de generar el master. |
 
-3. **Secuencia de IDs** = enteros autoincrementales por libro, partiendo en 1.
-   `section_id`, `block_id`, `chunk_id` se asignan en orden de lectura.
+**Eliminados:** `base.py` (CorpusLoader ABC, nunca importado), `checkpoints.py` (CheckpointResolver, reemplazado por sectioner).
 
-4. **`chunk_id` del master es `int`** (1, 2, 3…). El `chunk_id` que va a Chroma
-   es `f"{book_id}::chunk_{i}::text"` (string) o `::question_{j}` — el mapping
-   lo hace el indexador, no el master. Esto evita tocar `Chunk` de `schemas.py`.
+## Decisiones de contrato (resumen actualizado)
 
-5. **`BookMaster`** = nuevo modelo pydantic en `companion/corpus/book_master.py`
-   que refleja EXACTAMENTE `data/master/master.md`. Los schemas en
-   `companion/schemas.py` no se tocan (Chang es dueño).
+### IDs
+- `book_id`: snake_case estable (`la_metamorfosis_es`).
+- `section_id`, `block_id`, `chunk_id`: enteros autoincrementales por libro.
 
-6. **Estructura de directorios plana** (decisión 2026-07-05). Ya no existe
-   `data/books/<book_id>/`. Los archivos se organizan por tipo:
-   `data/master/`, `data/outputs/readers/`, `data/outputs/retrievals/`.
+### Secciones (pausas pedagógicas)
+- **No existe `checkpoints.json`.** Las secciones se aplican al final con `sectioner.apply_pauses()`.
+- El master se genera con `sections: []` y `block.section_id = null`.
+- Para marcar pausas: se pasan `SectionSpot(block_id, split_after=None)` al sectioner.
+- Si una pausa cae dentro de un bloque: el sectioner lo parte en dos, renumera, asigna section_id.
+- Los chunks pueden cruzar secciones (tener ≥2 `section_ids`).
+- La relación bloque→sección está en `blocks[].section_id`.
 
-7. **Secciones (pausas pedagógicas) son manuales** (decisión 2026-07-05).
-   El default (`--checkpoints=none`) produce un master con `sections: []` y
-   todos los `block.section_id = null`. Para marcar pausas, el usuario
-   crea un `data/master/<book_id>.checkpoints.json` y re-corre el pipeline
-   con `--checkpoints=json --checkpoints-json=...`. El `HeuristicCheckpointResolver`
-   existe solo para exploración y emite un warning al activarse.
+### Chunks
+- `id`: autoincremental.
+- `section_ids: list[int]` — sin null, en orden, sin duplicados.
+- `start_block_id`/`end_block_id`: existen en el modelo (uso interno del chunker) pero **no se publican** en master ni retrieval.
+- Relación bloque→chunk: `blocks[].chunk_id`.
 
-8. **Año de publicación es manual** (decisión 2026-07-05). Prioridad:
-   `--year` (CLI) > DC date del EPUB (si válida, rango 1000-año_actual+1) >
-   ERROR. El script **nunca** improvisa un año.
+### Anti-spoiler (por chunk_id)
+```
+chunks con id < current_chunk_id  → completos (chunk.text entero)
+chunk  con id == current_chunk_id → parcial ("\n\n".join(blocks hasta current_block_id))
+chunks con id > current_chunk_id  → no se usan
+```
 
-## Decisiones de implementación
+### Regla `\n\n` (única fuente de verdad)
+```
+chunk.text = "\n\n".join(b.text for b in blocks if b.chunk_id == chunk.id)
+```
+El chunker y el backend en runtime usan la misma regla.
 
-1. **Encoding del EPUB**: el de La Metamorfosis declara `utf-8` pero está en
-   latin-1. Estrategia: intentar utf-8; si produce U+FFFD, fallback a latin-1.
-   Suficiente para MVP; si hay libros en más encodings se sustituye por
-   `chardet`.
+### Bloques
+- `id`: autoincremental.
+- `content`: HTML semántico limpio (`<p>`, `<h1>`–`<h3>`, `<blockquote>`, `<hr>`, `<nav>`) **sin atributos** (class, id, style) y **sin `<span>`**.
+- `text`: texto plano, sin HTML.
+- `is_narrative`: true para `<p>` y `<blockquote>` con texto.
+- `chunk_id`: el chunk al que pertenece.
 
-2. **Parser HTML**: `BeautifulSoup(text, 'html.parser')` sobre el texto
-   ya decodificado. `lxml` rompía la codificación del EPUB mal declarado.
-
-3. **Limpieza de texto**: en cada bloque, reemplazar `\xad` (soft hyphen) y
-   colapsar whitespace al final. No tocamos mayúsculas ni acentos.
-
-
-5. **Estrategia de chunking** (parametrizable en `companion/chunkers/narrative.py`):
-   - Target 220–320 tokens; mín 80–120; máx 400; flexible 500.
-   - Cierra en límites de párrafo / diálogo.
-   - **No cierra en checkpoints** (per `master.md` v2).
-   - Si un bloque aislado > max_flexible, se parte por oración antes de añadir.
-   - Sin overlap persistente.
-   - Constructor con todos los parámetros: `NarrativeChunker(target_tokens=270,
-     min_tokens=100, max_tokens=400, max_flexible_tokens=500)`.
-
-6. **Contador de tokens**: proxy = `len(text.split()) * 1.3`. Suficiente para
-   español; no añadimos `tiktoken`.
-
-7. **Texto canónico** (en `companion/corpus/canonical_text.py`):
-   `"\n\n".join(chunk.text for chunk in chunks)`. El `char_start`/`char_end`
-   se calculan sobre este string. Es la única normalización — si cambia, se
-   invalidan todos los offsets persistidos en Chroma (contrato #1).
-
-8. **Preguntas hipotéticas** (en `companion/corpus/retrieval_writer.py`):
-   - 5 por chunk. Prompt en español; espera JSON array de 5 strings.
-   - Usa `MockLLMProvider` por default (sin API key). El `MockLLMProvider`
-     ya tiene un canned para "array json".
-   - Si `LLM_PROVIDER` real (nvidia), usa `get_content_llm()` y cachea.
-
-## Lo que NO cambia
-
-- `companion/schemas.py` (F1). `Chunk`/`EnrichedChunk` siguen siendo los del
-  runtime F1.
-- `companion/agent/tools/contracts.py` (Giano es dueño).
-- `companion/scope/resolver.py` (Giano es dueño). El catálogo de chunks
-  (`ChunkRef`) lo consumimos nosotros del master.
-- `companion/providers/factory.py` (sigue roto — fuera de scope, no lo toco).
-
-## Puntos de verificación para Chang (humano)
-
-1. **Master sin secciones (default)**: `data/master/<book_id>.master.json` →
-   confirmar `sections: []` y todos `block.section_id = null`. Decidir dónde
-   van las pausas pedagógicas.
-2. **Chunks y offsets**: revisar `chunks[]` y `blocks[].chunk_id` → ¿los
-   tamaños son razonables? ¿los offsets satisfacen
-   `canonical[char_start:char_end] == text`?
-3. **Reader**: `data/outputs/readers/<book_id>/reader.json` → si no hay
-   secciones, `sections: []` y no hay checkpoints. Si las marcaste con
-   `checkpoints.json`, validar que `start_block_id`/`end_block_id` están
-   bien asignados.
-4. **Retrieval**: `data/outputs/retrievals/<book_id>/retrieval.jsonl` → validar
-   que las preguntas hipotéticas son variadas y útiles; las 5 por chunk.
+### Preguntas hipotéticas
+- La Metamorfosis (versión final): generadas manualmente por el agente — 4-5 por chunk, específicas al contenido, sin dependencia del LLM.
+- `retrieval_writer.py` existe como boilerplate para otros libros, pero usa `MockLLMProvider` (factory roto).
 
 ## Runbook
 
 ```bash
-# sin pausas, año del EPUB (o error si no tiene):
+# Generar master + reader + retrieval desde un EPUB:
 .venv\Scripts\python.exe -m companion.cli.preprocess \
     La_Metamorfosis-Kafka_Franz.epub \
-    --book-id la_metamorfosis_es
+    --book_id la_metamorfosis_es \
+    --year 1915
 
-# con pausas manuales y año fijo:
-.venv\Scripts\python.exe -m companion.cli.preprocess \
-    La_Metamorfosis-Kafka_Franz.epub \
-    --book-id la_metamorfosis_es \
-    --year 1915 \
-    --checkpoints=json \
-    --checkpoints-json=data/master/la_metamorfosis_es.checkpoints.json
-
-# exploración (warning de "no son pausas pedagógicas"):
-.venv\Scripts\python.exe -m companion.cli.preprocess \
-    La_Metamorfosis-Kafka_Franz.epub \
-    --book-id la_metamorfosis_es --checkpoints=heuristic
+# Aplicar pausas pedagógicas (después de generar el master):
+python -c "
+from companion.corpus.book_master import BookMaster
+from companion.corpus.sectioner import apply_pauses, SectionSpot
+import json
+master = BookMaster.model_validate(json.load(open('data/master/la_metamorfosis_es.master.json')))
+spots = [SectionSpot(block_id=4, split_after='monstruoso insecto'), ...]
+master = apply_pauses(master, spots)
+# ... write master, reader, retrieval
+"
 ```
+
+## Lo que NO se toca (áreas de otros dueños)
+
+- `companion/schemas.py` (F1 runtime).
+- `companion/agent/tools/contracts.py` (Giano).
+- `companion/scope/resolver.py` (Giano).
+- `companion/providers/factory.py` (sigue roto — fuera de scope).
+- `companion/vector_store/`, `retrieval/`, `enrichers/`, `agent/`, `api/` — documentados en README pero no usados en este pipeline.
+
+## Archivos generados (no commiteados)
+
+- `data/master/la_metamorfosis_es.master.json` (fuente de verdad, se regenera)
+- `data/outputs/readers/la_metamorfosis_es.reader.json`
+- `data/outputs/retrievals/la_metamorfosis_es.retrieval.jsonl`
+
+## Decisiones abiertas
+
+- ¿Reescribir `NarrativeChunker` con cierre por distancia al target?
+- ¿Migrar embeddings a E5?
+- ¿Implementar `BlockSplitter` (split de bloques oversized antes del chunker)?
+- ¿Indexar en ChromaDB?
+- ¿Arreglar `providers/factory.py` (está roto con syntax errors)?

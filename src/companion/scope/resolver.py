@@ -78,8 +78,10 @@ class ScopeResolver:
 
     Args:
         catalog: chunk descriptors for the whole work.
-        canonical_text: the exact string produced by TextLoader.load(); the same
-            string the frontend renders.  Used to slice chunk text by offset.
+        canonical_text: the exact string produced by
+            corpus.canonical_text.build_canonical_text() ("\n\n".join of chunk
+            texts); the same string the frontend renders.  Used to slice chunk
+            text by offset.
     """
 
     def __init__(self, catalog: list[ChunkRef], canonical_text: str) -> None:

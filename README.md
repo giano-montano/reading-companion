@@ -44,5 +44,5 @@ src/companion/
 
 - **[`AGENTS.md`](AGENTS.md)** — reglas de trabajo, contratos que no se rompen,
   convenciones y coordinación de equipo.
-- **[`agente_log/`](agente_log/)** — registro de sesiones: decisiones, diseño y
+- **[`agent_log/`](agent_log/)** — registro de sesiones: decisiones, diseño y
   puntos de cableado abiertos. Léelo antes de contribuir.

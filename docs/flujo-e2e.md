@@ -40,22 +40,38 @@ mensaje + el contexto completo, decide, ejecuta una tool, responde, y olvida.
 
 ## 2. Los datos precomputados que el backend prepara UNA vez
 
-🟡 Antes de que ningún alumno lea, hay una fase de **indexación por obra** (jobs,
-offline):
+Antes de que ningún alumno lea, hay una fase de **preprocesamiento por obra**
+(offline, CLI). Dos etapas: una **ya construida** (Chang) y otra **pendiente**.
 
-1. **`index_book`** — carga el `.txt`, produce el **texto canónico**, lo trocea
-   con el `NarrativeChunker` (chunks con `char_start/char_end` absolutos +
-   `section`), los enriquece y los embebe en **ChromaDB**. Emite además un
-   **catálogo/manifiesto ligero**: por cada chunk `{chunk_id, section,
-   char_start, char_end, chunk_index}`. 🔷 Este catálogo es la pieza que conecta
-   backend y frontend (ver §3 y §4).
-2. **`graph_job`** — precomputa `graph.json`: nodos (personajes) y aristas
-   (relaciones) con la sección en que cada relación se revela (para el
-   anti-spoiler).
-3. **`ner_job`** — entidades por chunk para el panel NER del frontend.
+**Etapa A — preprocesamiento del libro ✅ (existe: `companion.cli.preprocess`).**
+Toma un EPUB (`data/source/<epub>`) y produce tres artefactos derivados:
+- `data/master/<book_id>.master.json` — fuente de verdad editable (bloques + chunks).
+- `data/outputs/readers/<book_id>.reader.json` — para el frontend.
+- `data/outputs/retrievals/<book_id>.retrieval.jsonl` — para el RAG (preguntas
+  hipotéticas por chunk).
 
-Resultado: por cada obra existen **texto canónico + Chroma + catálogo +
-graph.json + NER**. Todo esto es de solo-lectura en tiempo de uso.
+El **texto canónico** aquí NO sale de un `.txt`: es `"\n\n".join(chunk.text)` en
+orden de lectura (`corpus/canonical_text.py`). Los `char_start/char_end` de cada
+chunk se calculan sobre ese string con `recompute_offsets()`. Detalle en el
+handoff de preprocessing (`agent_log/2026-07-05-preprocessing-pipeline.md`).
+
+> ⚠️ **Cambio de contrato respecto a mi diseño original.** El chunk lleva
+> **`section_ids: list[int]`** (un chunk puede cruzar secciones), no
+> `section: int`. Las secciones son **manuales** (`sectioner.apply_pauses()`);
+> por defecto el master sale con `sections: []`. Y el anti-spoiler que definió
+> Chang es **por `chunk_id`** (chunks con id < actual completos; el actual
+> parcial), no por sección/progreso. Esto **choca con `ScopeResolver`** (los
+> modos `seccion`/`hasta_aqui` asumen `section: int`). Hay que reconciliarlo
+> antes de cablear el agente. Ver §8.
+
+**Etapa B — indexación vectorial + precómputos ⬜ (NO existe todavía).**
+`jobs/index_book.py`, `graph_job.py`, `ner_job.py` están **vacíos**. Nadie
+embebe el `retrieval.jsonl` en **ChromaDB**, ni emite el **catálogo/manifiesto**
+que consume el `ScopeResolver`, ni `graph.json`, ni el store de NER. Esto es lo
+que falta para que QA-RAG, RESUMIR, GRAFO y NER funcionen en runtime.
+
+Resultado hoy: por cada obra existen **master + reader + retrieval.jsonl** (✅).
+Faltan **Chroma + catálogo + graph.json + NER** (⬜).
 
 ---
 
