@@ -23,7 +23,7 @@ from __future__ import annotations
 
 from enum import Enum
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 
 from companion.agent.tools.contracts import ToolName
 from companion.providers.llm_base import LLMProvider

@@ -46,7 +46,7 @@ class Settings(BaseSettings):
     llm_cache_dir: str = Field("./.llm_cache")
 
     # Embeddings
-    embedding_model: str = Field("paraphrase-multilingual-MiniLM-L12-v2")
+    embedding_model: str = Field("intfloat/multilingual-e5-base")
 
     # NER — Spanish model by default; falls back to smaller variants automatically
     ner_model: str = Field("es_core_news_sm")

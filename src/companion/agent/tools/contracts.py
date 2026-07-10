@@ -53,15 +53,20 @@ class ReadingState(BaseModel):
     Reading position reported by the frontend on EVERY request.  Explicit
     context — the LLM never produces or mutates these values.
 
-      A) focus_chunk_ids       chunks intersecting the viewport right now
-      B) last_completed_section section immediately before the focus
-      C) max_progress_section   high-water mark; monotonic, only ever increases
+      A) focus_chunk_ids          chunks intersecting the viewport right now
+      B) last_completed_section    section immediately before the focus
+      C) max_progress_section      high-water mark; monotonic, only ever increases
+      D) max_progress_chunk_index  chunk-based anti-spoiler gate (auto-incremental)
 
-    The anti-spoiler filter uses C (max_progress_section), NEVER A.
+    The anti-spoiler filter uses D (max_progress_chunk_index), NEVER A or C.
     """
     focus_chunk_ids: list[str] = Field(default_factory=list)
     last_completed_section: int = Field(0)
     max_progress_section: int = Field(0)
+    max_progress_chunk_index: int = Field(
+        default=0,
+        description="Highest chunk index the student has reached. Anti-spoiler gate.",
+    )
 
 
 class Citation(BaseModel):
@@ -93,11 +98,13 @@ class SummarizeInput(ToolInput):
 class QaRagInput(ToolInput):
     """QA-RAG — answer a question about the work.
 
-    `scope` is the top-k retrieved chunks, already gated to sections
-    <= max_progress_section.  `query` is the student's raw question.
+    `scope` is the top-k retrieved chunks, already gated to chunks
+    <= max_progress_chunk_index.  `query` is the student's raw question.
+    `history` carries recent chat turns for conversational context.
     """
     tool: Literal["qa_rag"] = "qa_rag"
     query: str
+    history: list[dict[str, str]] = Field(default_factory=list)
 
 
 class EvaluateInput(ToolInput):
