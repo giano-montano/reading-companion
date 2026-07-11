@@ -7,6 +7,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from companion.api.books import router as books_router
+from companion.api.chat import router as chat_router
+from companion.api.images import router as images_router
 from companion.api.visual import router as visual_router
 from companion.config import settings
 
@@ -30,7 +32,22 @@ app.mount(
 )
 
 app.include_router(books_router)
+app.include_router(chat_router)
+app.include_router(images_router)
 app.include_router(visual_router)
+
+
+@app.on_event("startup")
+def _warmup() -> None:
+    """Build the heavy QA-RAG singletons (E5 embedder ~24s, Chroma, LLMs) at
+    startup so the first /api/chat request isn't penalized. Best-effort: a
+    failure here (e.g. missing NVIDIA key) must not block the read-only API."""
+    try:
+        from companion.api.deps import warmup
+        warmup()
+    except Exception as exc:  # noqa: BLE001 — warmup is optional
+        import logging
+        logging.getLogger(__name__).warning("Chat warmup skipped: %s", exc)
 
 
 @app.get("/")

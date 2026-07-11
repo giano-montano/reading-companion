@@ -5,7 +5,7 @@ from pathlib import Path
 
 from fastapi import APIRouter, HTTPException
 
-READER_DIR = Path(__file__).resolve().parent.parent.parent.parent / "data" / "outputs" / "reader"
+READER_DIR = Path(__file__).resolve().parent.parent.parent.parent / "data" / "outputs" / "readers"
 
 router = APIRouter(prefix="/api/books", tags=["books"])
 

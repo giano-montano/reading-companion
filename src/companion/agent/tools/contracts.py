@@ -25,8 +25,10 @@ from typing import Annotated, Literal, Union
 
 from pydantic import BaseModel, Field
 
-# Router labels.  Default route (unclassified) is "qa_rag".
-ToolName = Literal["resumir", "qa_rag", "evaluacion", "grafo"]
+# Router labels.  Default route (unclassified) is "qa_rag".  "imagen" is a
+# routing target only (async illustration job) — it has no ToolInput/ToolOutput
+# variant, so it is absent from the discriminated unions below.
+ToolName = Literal["resumir", "qa_rag", "evaluacion", "grafo", "imagen"]
 
 
 # ---------------------------------------------------------------------------

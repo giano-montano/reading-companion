@@ -30,8 +30,11 @@ class VisualSupportRequest(BaseModel):
 
     allow_text_in_image: bool = False
 
-    # Para integración sin gastar Cloudflare
-    mock: bool = False
+    # Mock override, tri-estado:
+    #   None  → usa el default global (settings.visual_mock_enabled)
+    #   True  → fuerza mock (SVG placeholder, no llama a Cloudflare)
+    #   False → fuerza generación real (ignora el flag global)
+    mock: bool | None = None
 
 
 class VisualSupportResponse(BaseModel):

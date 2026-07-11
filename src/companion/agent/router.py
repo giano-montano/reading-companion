@@ -67,6 +67,7 @@ _LABEL_TO_TOOL: dict[str, ToolName] = {
     "QA_RAG": "qa_rag",
     "QA": "qa_rag",
     "GRAFO": "grafo",
+    "IMAGEN": "imagen",
 }
 _UNCLASSIFIABLE = "NO_CLASIFICABLE"
 
@@ -76,6 +77,7 @@ _SYSTEM = (
     "responde EXACTAMENTE con una sola etiqueta, sin explicación:\n"
     "  RESUMIR          — pide resumir/recapitular lo que está leyendo.\n"
     "  QA-RAG           — hace una pregunta sobre la obra, personajes o trama.\n"
+    "  IMAGEN           — pide una ilustración/dibujo/imagen de lo que está leyendo.\n"
     "  GRAFO            — pide ver el grafo/mapa de relaciones entre personajes.\n"
     "  NO_CLASIFICABLE  — saludo, ruido, o intención imposible de determinar.\n"
     "Responde solo la etiqueta."
@@ -172,7 +174,7 @@ class Router:
         up = raw.strip().upper()
         # Exact/contains match against known labels (longest first to avoid
         # 'QA' matching before 'QA-RAG').
-        for label in ("RESUMIR", "QA-RAG", "QA_RAG", "GRAFO", _UNCLASSIFIABLE, "QA"):
+        for label in ("RESUMIR", "QA-RAG", "QA_RAG", "IMAGEN", "GRAFO", _UNCLASSIFIABLE, "QA"):
             if label in up:
                 return "QA-RAG" if label in ("QA_RAG", "QA") else label
         return _UNCLASSIFIABLE
