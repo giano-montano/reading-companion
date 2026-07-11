@@ -204,9 +204,27 @@ main {
 }
 
 .msg-citations {
+  display: block;
   margin-top: 0.4rem;
+  padding: 0.15rem 0.5rem;
+  font: inherit;
   font-size: 0.78rem;
-  color: #6d7480;
+  color: #2a5d8f;
+  background: #fff;
+  border: 1px solid #cfd9e4;
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+.msg-citations:hover {
+  background: #eef4fa;
+}
+
+.reader-text .cited {
+  background: #fdf3c4;
+  box-shadow: 0 0 0 6px #fdf3c4;
+  border-radius: 2px;
+  transition: background 0.4s ease, box-shadow 0.4s ease;
 }
 
 .chat-input {

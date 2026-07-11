@@ -159,9 +159,20 @@ createServer(async (req, res) => {
       res.write(sse("token", { delta: m }));
       await new Promise((r) => setTimeout(r, 40));
     }
+    // cita un bloque real de lo que el alumno está viendo (offsets verdaderos)
+    const citedChunk = reading_state.focus_chunk_ids?.[0] ?? `${BOOK_ID}::chunk::1`;
+    const citedBlock =
+      BLOCKS.find((b) => b.type === "p" && b.chunk_id === citedChunk) ??
+      BLOCKS.find((b) => b.type === "p" && b.chunk_id);
     res.write(
       sse("citations", {
-        citations: [{ chunk_id: `${BOOK_ID}::chunk::1`, char_start: 0, char_end: 120 }],
+        citations: [
+          {
+            chunk_id: citedBlock.chunk_id,
+            char_start: citedBlock.char_start,
+            char_end: citedBlock.char_end,
+          },
+        ],
         answered: true,
         ok: true,
       }),

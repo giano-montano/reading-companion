@@ -25,11 +25,13 @@ interface ChatItem {
 interface Props {
   bookId: string;
   readingState: ReadingState;
+  /** Al llegar citas se resaltan en el texto; con scroll=true además navega. */
+  onCitations: (citations: Citation[], scrollToSource: boolean) => void;
 }
 
 let nextId = 1;
 
-export function ChatPanel({ bookId, readingState }: Props) {
+export function ChatPanel({ bookId, readingState, onCitations }: Props) {
   const [items, setItems] = useState<ChatItem[]>([]);
   const [input, setInput] = useState("");
   const [phase, setPhase] = useState<"idle" | "thinking" | "streaming">("idle");
@@ -81,6 +83,7 @@ export function ChatPanel({ bookId, readingState }: Props) {
             case "citations":
               if (assistantId !== null && ev.data.citations.length > 0) {
                 patch(assistantId, { citations: ev.data.citations });
+                onCitations(ev.data.citations, false); // resalta sin mover el scroll
               }
               break;
             case "clarify":
@@ -145,7 +148,7 @@ export function ChatPanel({ bookId, readingState }: Props) {
           </p>
         )}
         {items.map((item) => (
-          <ChatBubble key={item.id} item={item} />
+          <ChatBubble key={item.id} item={item} onCitations={onCitations} />
         ))}
         {phase === "thinking" && (
           <div className="msg assistant thinking">Pensando…</div>
@@ -172,7 +175,13 @@ export function ChatPanel({ bookId, readingState }: Props) {
   );
 }
 
-function ChatBubble({ item }: { item: ChatItem }) {
+function ChatBubble({
+  item,
+  onCitations,
+}: {
+  item: ChatItem;
+  onCitations: (citations: Citation[], scrollToSource: boolean) => void;
+}) {
   if (item.kind === "image") {
     if (item.imageError) return <div className="msg system">🖼️ {item.imageError}</div>;
     if (item.imageUrl) {
@@ -189,9 +198,15 @@ function ChatBubble({ item }: { item: ChatItem }) {
     <div className={`msg ${item.kind}`}>
       {item.text}
       {item.citations && (
-        <div className="msg-citations">
-          Fuentes: chunk {item.citations.map((c) => chunkIndexOf(c.chunk_id) ?? "?").join(", ")}
-        </div>
+        <button
+          type="button"
+          className="msg-citations"
+          title="Ver el pasaje en el texto"
+          onClick={() => onCitations(item.citations!, true)}
+        >
+          📖 Fuentes: chunk{" "}
+          {item.citations.map((c) => chunkIndexOf(c.chunk_id) ?? "?").join(", ")}
+        </button>
       )}
     </div>
   );
