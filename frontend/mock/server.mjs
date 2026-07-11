@@ -116,9 +116,23 @@ createServer(async (req, res) => {
   if (url.pathname === "/api/chat" && req.method === "POST") {
     let body = "";
     for await (const c of req) body += c;
-    const { message = "", reading_state = {} } = JSON.parse(body || "{}");
+    const { message = "", reading_state = {}, agent_state = {} } = JSON.parse(body || "{}");
 
     res.writeHead(200, { "Content-Type": "text/event-stream" });
+
+    // rama clarify: mensajes muy cortos, hasta 2 veces (como el router real)
+    const clarifyCount = agent_state.clarify_count ?? 0;
+    if (message.trim().length < 6 && clarifyCount < 2) {
+      res.write(sse("route", { tool: "clarify" }));
+      res.write(
+        sse("clarify", {
+          clarification: "¿Puedes contarme un poco más qué quieres saber de la historia?",
+          clarify_count: clarifyCount + 1,
+        }),
+      );
+      res.write(sse("done", {}));
+      return res.end();
+    }
 
     // rama imagen: como el backend, ilustra los focus_chunk_ids
     // Heurística solo del mock (el router real es un LLM); tolera tildes.

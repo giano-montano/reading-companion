@@ -8,7 +8,7 @@ export default function App() {
 
   if (selected) {
     return (
-      <main>
+      <main className="main-reader">
         <ReaderView bookId={selected.book_id} onBack={() => setSelected(null)} />
       </main>
     );

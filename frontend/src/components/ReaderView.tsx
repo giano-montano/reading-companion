@@ -3,6 +3,8 @@ import { getReader } from "../api/client";
 import type { ReaderBlock, ReaderResponse } from "../api/types";
 import { chunkIndexOf } from "../api/types";
 import { useReadingTracker } from "../hooks/useReadingTracker";
+import { ChatPanel } from "./ChatPanel";
+import { IllustrateBar } from "./IllustrateBar";
 
 type ReaderState =
   | { status: "loading" }
@@ -54,9 +56,13 @@ export function ReaderView({ bookId, onBack }: Props) {
         <div>
           <strong>{metadata.title}</strong> · {metadata.author}
         </div>
+        <IllustrateBar bookId={bookId} blocks={blocks} readingState={readingState} />
       </header>
 
-      <BlockList blocks={blocks} observeBlock={observeBlock} />
+      <div className="reader-layout">
+        <BlockList blocks={blocks} observeBlock={observeBlock} />
+        <ChatPanel bookId={bookId} readingState={readingState} />
+      </div>
 
       {/* Barra de desarrollo: visualiza el estado que viajará al backend. */}
       <footer className="reading-debug">
