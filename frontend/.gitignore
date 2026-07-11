@@ -1,0 +1,5 @@
+# El .gitignore raíz ignora *.json (datos del backend); aquí los JSON son config
+!*.json
+node_modules/
+dist/
+*.local
