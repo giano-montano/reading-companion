@@ -4,9 +4,11 @@
  *
  *  - focus_chunk_ids: chunk_ids distintos de los bloques visibles en el
  *    viewport ahora mismo ("lo que veo").
- *  - max_progress_chunk_index: mayor N de ::chunk::N entre los bloques que el
- *    alumno ya dejó atrás (salieron por arriba). Monótono: nunca baja. Es el
- *    gate anti-spoiler del QA-RAG.
+ *  - max_progress_chunk_index: hasta dónde ha llegado el lector = el mayor N
+ *    de ::chunk::N entre lo visible ahora y lo ya dejado atrás (semántica
+ *    aclarada por el equipo 2026-07-11: "hasta donde leyó", incluye lo que
+ *    está en pantalla — el anti-spoiler no debe bloquear texto visible).
+ *    Monótono: nunca baja.
  *
  * Calibración: un bloque tapado por el header sticky (TOP_OFFSET) o por la
  * barra de estado inferior (BOTTOM_OFFSET) NO cuenta como visible. "Dejado
@@ -62,8 +64,12 @@ export function useReadingTracker(): {
           ),
         ].sort((a, b) => (chunkIndexOf(a) ?? 0) - (chunkIndexOf(b) ?? 0));
 
+        // "Hasta donde leyó" incluye lo visible: el chunk más alto en pantalla
+        // también cuenta como alcanzado.
+        const maxVisible = focus.reduce((m, id) => Math.max(m, chunkIndexOf(id) ?? 0), 0);
+
         setReadingState((prev) => {
-          const max = Math.max(prev.max_progress_chunk_index, maxPassed);
+          const max = Math.max(prev.max_progress_chunk_index, maxPassed, maxVisible);
           if (
             max === prev.max_progress_chunk_index &&
             focus.length === prev.focus_chunk_ids.length &&

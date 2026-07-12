@@ -48,6 +48,8 @@ async function measuredState() {
         if (r.bottom > top && r.top < innerHeight - bottom) visible.add(n);
         if (r.bottom <= top) passedMax = Math.max(passedMax, n);
       }
+      // semántica "hasta donde leyó": lo visible también cuenta como alcanzado
+      passedMax = Math.max(passedMax, ...visible, 0);
       return { viendo: [...visible].sort((a, b) => a - b), passedMax };
     },
     [TOP_OFFSET, BOTTOM_OFFSET],
@@ -66,9 +68,13 @@ async function compareAt(label) {
   return { reported, measured };
 }
 
-// 1. Arriba del todo: sin nada leído.
-let { reported } = await compareAt("inicio");
-check(reported.max === 0, "inicio: nada leído aún", `barra=${reported.max}`);
+// 1. Arriba del todo: "leído hasta" = el chunk visible más alto.
+let { reported, measured } = await compareAt("inicio");
+check(
+  reported.max === measured.passedMax,
+  "inicio: leído hasta = chunk visible más alto",
+  `barra=${reported.max} medido=${measured.passedMax}`,
+);
 
 // 2. Scroll descendente por pasos, verificando en cada parada.
 const pageHeight = await page.evaluate(() => document.body.scrollHeight);

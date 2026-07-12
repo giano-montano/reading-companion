@@ -31,8 +31,6 @@ interface Props {
   checkpoint: { id: string; question: string } | null;
 }
 
-let nextId = 1;
-
 export function ChatPanel({ bookId, readingState, onCitations, checkpoint }: Props) {
   const [items, setItems] = useState<ChatItem[]>([]);
   const [input, setInput] = useState("");
@@ -40,6 +38,7 @@ export function ChatPanel({ bookId, readingState, onCitations, checkpoint }: Pro
   const agentStateRef = useRef<AgentState>(emptyAgentState());
   const listRef = useRef<HTMLDivElement>(null);
   const lastCheckpointId = useRef<string | null>(null);
+  const nextIdRef = useRef(1); // ref y no módulo: sobrevive HMR sin colisionar ids
 
   useEffect(() => {
     listRef.current?.scrollTo({ top: listRef.current.scrollHeight });
@@ -60,7 +59,7 @@ export function ChatPanel({ bookId, readingState, onCitations, checkpoint }: Pro
   }, [checkpoint]);
 
   const push = (item: Omit<ChatItem, "id">): number => {
-    const id = nextId++;
+    const id = nextIdRef.current++;
     setItems((prev) => [...prev, { ...item, id }]);
     return id;
   };
@@ -74,9 +73,13 @@ export function ChatPanel({ bookId, readingState, onCitations, checkpoint }: Pro
     setPhase("thinking");
     push({ kind: "user", text: message });
 
+    // Captura ANTES del stream: si un checkpoint dispara pending_question
+    // mientras este stream corre, el reset de abajo no debe tragárselo.
+    const wasPending = agentStateRef.current.pending_question;
+    const pendingTextAtSend = agentStateRef.current.pending_question_text;
+
     let assistantId: number | null = null;
     let assistantText = "";
-    let gotClarify = false;
 
     try {
       await streamChat(
@@ -104,8 +107,8 @@ export function ChatPanel({ bookId, readingState, onCitations, checkpoint }: Pro
               }
               break;
             case "clarify":
-              // Maña #3: reenviar este conteo o el router pide aclarar por siempre.
-              gotClarify = true;
+              // Maña #3: reenviar este conteo o el router pide aclarar por
+              // siempre. El clarify no toca history: el próximo turno resuelve.
               agentStateRef.current = {
                 ...agentStateRef.current,
                 clarify_count: ev.data.clarify_count,
@@ -145,10 +148,11 @@ export function ChatPanel({ bookId, readingState, onCitations, checkpoint }: Pro
         ].slice(-MAX_HISTORY);
         agentStateRef.current = { ...agentStateRef.current, history, clarify_count: 0 };
       }
-      // La pregunta de evaluación se responde una sola vez: tras un stream
-      // exitoso (haya o no texto), el flag baja. Si el fetch falló (catch),
-      // se mantiene para reintentar.
-      if (agentStateRef.current.pending_question) {
+      // La pregunta de evaluación se responde una sola vez: si ESTE mensaje
+      // viajó con pending_question y ningún checkpoint nuevo la reemplazó
+      // durante el stream, el flag baja. Si el fetch falló (catch), se
+      // conserva para reintentar.
+      if (wasPending && agentStateRef.current.pending_question_text === pendingTextAtSend) {
         agentStateRef.current = {
           ...agentStateRef.current,
           pending_question: false,
@@ -163,7 +167,6 @@ export function ChatPanel({ bookId, readingState, onCitations, checkpoint }: Pro
     } finally {
       setPhase("idle");
     }
-    void gotClarify; // el clarify no toca history: el próximo turno lo resuelve
   }
 
   return (
