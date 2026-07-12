@@ -133,7 +133,14 @@ const untitled = await page.$$eval(".illustrate-bar button", (btns) =>
 );
 check(untitled === 0, "los 4 botones de ilustrar tienen tooltip");
 
-// 8. Fuentes como chips numerados (sin la palabra "chunk") que navegan al pasaje.
+// 8. Panel NER: renderiza los chunk_elements del reader (anti-spoiler aparte).
+const panelText = await page.textContent(".elements-panel").catch(() => null);
+check(
+  panelText !== null && panelText.includes("Gregorio"),
+  "el panel de elementos renderiza los chunk_elements del reader",
+);
+
+// 9. Fuentes como chips numerados (sin la palabra "chunk") que navegan al pasaje.
 await page.fill(".chat-input input", "¿En qué se convirtió Gregorio?");
 await page.press(".chat-input input", "Enter");
 await page.waitForSelector(".msg-citations button", { timeout: 30_000 });

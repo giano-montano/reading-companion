@@ -72,7 +72,7 @@ def build_retrieval_entries(data: dict) -> list[dict]:
                 "publication_year": metadata.get("publication_year"),
                 "char_start": chunk["char_start"],
                 "char_end": chunk["char_end"],
-                "hypothetical_questions": [],
+                    "chunk_summary": "",
             },
         }
         entries.append(entry)

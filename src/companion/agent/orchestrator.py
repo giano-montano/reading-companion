@@ -4,17 +4,23 @@ orchestrator.py — Full QA-RAG pipeline for answering student questions.
 Connects query → embedding → ChromaDB retrieval → anti-spoiler filtering →
 ScopeChunk conversion → QaRagTool execution → QaRagOutput.
 
+EVALUACIÓN (`evaluate`) rides the same retrieval pipeline with the teacher's
+question as query and EvaluateTool instead of QaRagTool.
+
 This is the single entry point called by the API endpoint and the agent runtime.
 """
 from __future__ import annotations
 
 from companion.agent.state import AgentState
 from companion.agent.tools.contracts import (
+    EvaluateInput,
+    EvaluateOutput,
     QaRagInput,
     QaRagOutput,
     ReadingState,
     ScopeChunk,
 )
+from companion.agent.tools.evaluate import EvaluateTool
 from companion.agent.tools.qa_rag import QaRagTool
 from companion.config import settings
 from companion.embedders.base import Embedder
@@ -74,7 +80,54 @@ class QaRagOrchestrator:
         self._embedder = embedder
         self._store = vector_store
         self._tool = QaRagTool(llm=llm)
+        self._eval_tool = EvaluateTool(llm=llm)
         self._top_k = top_k or settings.top_k
+
+    def _retrieve_scope(
+        self,
+        query: str,
+        book_id: str,
+        max_chunk_index: int,
+    ) -> list[ScopeChunk]:
+        """Shared retrieval: embed → search → anti-spoiler gate → ScopeChunk."""
+        query_vec = self._embedder.embed(query)
+        retrieved = self._store.search(
+            query_vec,
+            variant=book_id,
+            top_k=self._top_k,
+        )
+        filtered = _anti_spoiler_filter(retrieved, max_chunk_index)
+        return [_retrieved_to_scope_chunk(d) for d in filtered]
+
+    def evaluate(
+        self,
+        *,
+        question: str,
+        answer: str,
+        book_id: str,
+        reading_state: ReadingState,
+    ) -> EvaluateOutput:
+        """EVALUACIÓN pipeline: same retrieval as QA-RAG, different tool/prompt.
+
+        The reference passages are retrieved with the teacher's question plus
+        the student's answer (so passages the student alludes to also surface),
+        gated by max_progress_chunk_index.  An empty scope does NOT abort —
+        the tool still gives cautious feedback without textual grounding.
+        """
+        query = f"{question}\n{answer}".strip()
+        scope = self._retrieve_scope(
+            query,
+            book_id,
+            reading_state.max_progress_chunk_index,
+        )
+
+        tool_input = EvaluateInput(
+            question=question,
+            answer=answer,
+            scope=scope,
+            reading_state=reading_state,
+        )
+        return self._eval_tool.execute(tool_input)
 
     def run(
         self,

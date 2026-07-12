@@ -4,6 +4,7 @@ import type { Citation, ReaderBlock, ReaderResponse } from "../api/types";
 import { checkpointQuestion, chunkIndexOf } from "../api/types";
 import { TOP_OFFSET, useReadingTracker } from "../hooks/useReadingTracker";
 import { ChatPanel } from "./ChatPanel";
+import { ElementsPanel } from "./ElementsPanel";
 import { IllustrateBar } from "./IllustrateBar";
 
 export interface CheckpointPrompt {
@@ -188,14 +189,20 @@ export function ReaderView({ bookId, onBack }: Props) {
           gateFired={gateFired}
           onSkip={handleSkip}
         />
-        <ChatPanel
-          bookId={bookId}
-          readingState={readingState}
-          onCitations={handleCitations}
-          checkpoint={checkpoint}
-          skippedCheckpointId={skippedId}
-          onQuestionAnswered={handleAnswered}
-        />
+        <div className="reader-side">
+          <ElementsPanel
+            elements={state.reader.chunk_elements}
+            readingState={readingState}
+          />
+          <ChatPanel
+            bookId={bookId}
+            readingState={readingState}
+            onCitations={handleCitations}
+            checkpoint={checkpoint}
+            skippedCheckpointId={skippedId}
+            onQuestionAnswered={handleAnswered}
+          />
+        </div>
       </div>
 
       {/* Barra de desarrollo: visualiza el estado que viajará al backend. */}

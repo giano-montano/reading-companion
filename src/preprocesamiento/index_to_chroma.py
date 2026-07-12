@@ -1,8 +1,8 @@
 """
-index_to_chroma.py — Indexa retrieval.jsonl en ChromaDB con preguntas hipotéticas.
+index_to_chroma.py — Indexa retrieval.jsonl en ChromaDB con resúmenes de chunk.
 
 Lee data/outputs/retrieval/<book_id>.retrieval.jsonl, construye embedded_text
-que incluye las hypothetical_questions concatenadas al texto original, lo
+que incluye el chunk_summary concatenado al texto original, lo
 embebe con SentenceTransformer y lo almacena en ChromaDB.
 
 Cada libro se guarda en una colección separada:
@@ -55,17 +55,17 @@ def index_retrieval_file(
     book_id = entries[0]["book_id"]
     variant = book_id
 
-    # ── build EnrichedChunks with questions in embedded_text ──────────
+    # ── build EnrichedChunks with summary in embedded_text ──────────
     from companion.schemas import EnrichedChunk
 
     enriched = []
     for entry in entries:
         meta = entry.get("metadata", {})
-        questions = meta.get("hypothetical_questions", [])
+        chunk_summary = meta.get("chunk_summary", "")
         chunk_text = entry["text"]
 
-        if questions:
-            embedded_text = "\n".join(questions) + "\n\n" + chunk_text
+        if chunk_summary:
+            embedded_text = chunk_summary + "\n\n" + chunk_text
         else:
             embedded_text = chunk_text
 
@@ -81,19 +81,17 @@ def index_retrieval_file(
                     "publication_year": meta.get("publication_year", ""),
                     "char_start": meta.get("char_start", 0),
                     "char_end": meta.get("char_end", 0),
-                    "hypothetical_questions": questions,
+                    "chunk_summary": chunk_summary,
                 },
-                enricher_name="hypothetical_questions",
+                enricher_name="chunk_summary",
             )
         )
 
     if dry_run:
-        total_questions = sum(
-            len(c.metadata.get("hypothetical_questions", [])) for c in enriched
-        )
+        summary_count = sum(1 for c in enriched if c.metadata.get("chunk_summary"))
         print(
             f"  {book_id}: {len(enriched)} chunks, "
-            f"{total_questions} preguntas -> coleccion rag_{variant}"
+            f"{summary_count} resumenes -> coleccion rag_{variant}"
         )
         return len(enriched)
 
@@ -122,7 +120,7 @@ def index_retrieval_file(
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="Indexa retrieval.jsonl en ChromaDB con preguntas hipoteticas"
+        description="Indexa retrieval.jsonl en ChromaDB con resumenes de chunk"
     )
     group = parser.add_mutually_exclusive_group(required=True)
     group.add_argument("--book_id", type=str, help="ID del libro")

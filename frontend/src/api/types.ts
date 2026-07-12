@@ -32,7 +32,23 @@ export interface ReaderBlock {
   char_start: number;
   char_end: number;
   is_narrative: boolean;
+  /** Preguntas de comprensión del checkpoint (solo en bloques BANDERA). */
   questions?: string[];
+}
+
+/**
+ * Panel NER: elementos narrativos de UN chunk (clave top-level
+ * `chunk_elements` del reader, generada por
+ * scripts/extract_narrative_elements.py). Cada entrada solo describe texto
+ * ya leído, así que agregar hasta max_progress_chunk_index nunca spoilea.
+ */
+export interface ChunkElements {
+  chunk_index: number;
+  personajes: string[];
+  lugares: string[];
+  objetos_simbolos: string[];
+  temas: string[];
+  emociones: string[];
 }
 
 export interface ReaderResponse {
@@ -43,6 +59,8 @@ export interface ReaderResponse {
     publication_year: number | null;
   };
   blocks: ReaderBlock[];
+  /** Ausente si el libro aún no fue anotado (hoy: solo la_metamorfosis). */
+  chunk_elements?: Record<string, ChunkElements>;
 }
 
 // --- Estado que el frontend mantiene y reenvía (backend stateless) ---------
@@ -107,6 +125,7 @@ export type ChatEvent =
       data: { citations: Citation[]; answered: boolean; ok: boolean };
     }
   | { event: "clarify"; data: { clarification: string; clarify_count: number } }
+  | { event: "evaluation"; data: { attempt_detected: boolean; ok: boolean } }
   | { event: "image_job"; data: { job_id: string; poll_url: string } }
   | { event: "notice"; data: { tool: string; message: string } }
   | { event: "error"; data: { message: string } }
@@ -167,13 +186,14 @@ export function chunkIndexOf(chunkId: string | null): number | null {
 export const CHECKPOINT_MARKER = "--$CHECKPOINT_LECTURA$--";
 
 /**
- * Pregunta de comprensión de un checkpoint. El backend envía las preguntas en
- * block.questions[0] (arreglo). El marcador crudo en block.text se ignora.
+ * Pregunta de comprensión de un checkpoint. La pregunta viaja en el campo
+ * `questions` (lista) del bloque BANDERA. Si el campo no existe, se cae
+ * al `text` como fallback (marcador crudo = sin pregunta).
  */
 export function checkpointQuestion(block: ReaderBlock): string | null {
   if (block.type !== "BANDERA") return null;
-  if (block.questions && block.questions.length > 0) {
-    return block.questions[0];
-  }
-  return null;
+  if (block.questions && block.questions.length > 0) return block.questions[0];
+  const text = block.text.trim();
+  if (!text || text === CHECKPOINT_MARKER) return null;
+  return text;
 }

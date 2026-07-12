@@ -9,8 +9,9 @@ the frontend consumes ONE transport model.
 
 Event vocabulary (event_name → payload):
     route      {tool}                         always first
-    token      {delta}                        qa_rag: incremental answer text
-    citations  {citations, answered, ok}      qa_rag: source spans, terminal
+    token      {delta}                        qa_rag/evaluacion: incremental text
+    citations  {citations, answered, ok}      qa_rag/evaluacion: source spans
+    evaluation {attempt_detected, ok}         evaluacion only, after citations
     clarify    {clarification, clarify_count} router asked to rephrase
     image_job  {job_id, poll_url}             imagen: async job handle (phase 3)
     notice     {message, tool}                stub/not-yet-implemented branches
@@ -88,11 +89,12 @@ class AgentRuntime:
                 reading_state=reading_state,
             )
         elif tool == "evaluacion":
-            # Deferred: participation-stance grading is not defined yet.
-            yield "notice", {
-                "tool": "evaluacion",
-                "message": "La evaluación de participación aún no está implementada.",
-            }
+            yield from self._stream_evaluation(
+                answer=decision.answer or message,
+                book_id=book_id,
+                agent_state=agent_state,
+                reading_state=reading_state,
+            )
         else:
             # resumir / grafo (and any future label) — not on the MVP path yet.
             yield "notice", {
@@ -125,6 +127,51 @@ class AgentRuntime:
         yield "citations", {
             "citations": [c.model_dump() for c in output.citations],
             "answered": output.answered,
+            "ok": output.ok,
+        }
+
+    def _stream_evaluation(
+        self,
+        *,
+        answer: str,
+        book_id: str,
+        agent_state: AgentState,
+        reading_state: ReadingState,
+    ) -> Iterator[Event]:
+        """Formative feedback on a checkpoint answer (pending_question flow).
+
+        The teacher's question travels in `agent_state.pending_question_text`
+        (the frontend echoes it while pending_question is True).  Token/citation
+        events mirror the QA-RAG shape so the frontend reuses its rendering; a
+        final `evaluation` event carries the participation flag."""
+        question = agent_state.pending_question_text.strip()
+        if not question:
+            yield "notice", {
+                "tool": "evaluacion",
+                "message": (
+                    "No tengo registrada la pregunta pendiente. Envía "
+                    "pending_question_text junto con pending_question."
+                ),
+            }
+            return
+
+        output = self._orchestrator.evaluate(
+            question=question,
+            answer=answer,
+            book_id=book_id,
+            reading_state=reading_state,
+        )
+
+        for match in _TOKEN_RE.finditer(output.message):
+            yield "token", {"delta": match.group(0)}
+
+        yield "citations", {
+            "citations": [c.model_dump() for c in output.citations],
+            "answered": output.ok,
+            "ok": output.ok,
+        }
+        yield "evaluation", {
+            "attempt_detected": output.attempt_detected,
             "ok": output.ok,
         }
 
