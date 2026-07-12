@@ -27,7 +27,7 @@ class Document(BaseModel):
 
 class Chunk(BaseModel):
     """A contiguous slice of a Document produced by a Chunker."""
-    chunk_id: str = Field(default_factory=_uuid)
+    chunk_id: str = Field(default_factory=_uuid) # falta tener conciencia de temporalidad, 1, 2 ,3 para evitar spoilers en QA RAG
     doc_id: str
     text: str
     chunk_index: int
@@ -63,3 +63,15 @@ class RetrievedDoc(BaseModel):
     char_start: int = Field(0)
     char_end:   int = Field(0)
     metadata: dict[str, Any] = Field(default_factory=dict)
+
+
+# class QueryResult(BaseModel):
+#     """
+#     Return value of answer().  Emit everything any plausible metric needs.
+#     Do not remove or rename fields without coordinating with UI + eval owners.
+#     """
+#     query: str
+#     answer: str
+#     retrieved_docs: list[RetrievedDoc]
+#     context_used: str   # the assembled context string passed to the generator
+#     variant: str

@@ -9,7 +9,7 @@ Design rules baked into these types:
     and never the LLM.  A tool never re-queries the vector store.
   * Every tool receives the frontend `ReadingState` as EXPLICIT context.  The
     three reading variables are computed client-side; the LLM never sets them.
-  * Anti-spoiler gating (chunks whose index > max_progress_chunk_index are
+  * Anti-spoiler gating (chunks whose section > max_progress_section are
     dropped) is applied UPSTREAM, before the scope reaches the tool.  By the
     time a tool sees its `scope`, it is already safe.  Tools trust the scope.
   * `ScopeChunk` offsets are absolute over the canonical text and satisfy
@@ -56,13 +56,14 @@ class ReadingState(BaseModel):
     context — the LLM never produces or mutates these values.
 
       A) focus_chunk_ids          chunks intersecting the viewport right now
-      B) max_progress_section     section-level high-water mark (ScopeResolver)
-      C) max_progress_chunk_index chunk-based anti-spoiler gate (auto-incremental)
+      B) last_completed_section    section immediately before the focus
+      C) max_progress_section      high-water mark; monotonic, only ever increases
+      D) max_progress_chunk_index  chunk-based anti-spoiler gate (auto-incremental)
 
-    The anti-spoiler filter uses C (max_progress_chunk_index), NEVER A or B.
-    B is used by the ScopeResolver for section-level scoping (hasta_aqui mode).
+    The anti-spoiler filter uses D (max_progress_chunk_index), NEVER A or C.
     """
     focus_chunk_ids: list[str] = Field(default_factory=list)
+    last_completed_section: int = Field(0)
     max_progress_section: int = Field(0)
     max_progress_chunk_index: int = Field(
         default=0,
@@ -111,7 +112,7 @@ class QaRagInput(ToolInput):
 class EvaluateInput(ToolInput):
     """EVALUACIÓN — participation stance (NOT correction).
 
-    `scope` is the reference passages for the current section.
+    `scope` is the reference passages, gated to <= max_progress_section.
     `question` is the comprehension prompt posed; `answer` is the student's
     raw attempt.  The tool judges engagement, not correctness.
     """
@@ -123,11 +124,10 @@ class EvaluateInput(ToolInput):
 class GraphInput(ToolInput):
     """GRAFO — query the precomputed character graph (graph.json).
 
-    "safe" view is filtered to sections the student has reached.
-    "full" view exposes the whole graph and REQUIRES explicit confirmation
-    (`confirmed=True`); without it the tool falls back to the safe view and
-    asks to confirm.  `scope` is typically empty — the graph is read from
-    graph.json, not chunks.
+    "safe" view is filtered to <= max_progress_section.  "full" view exposes
+    the whole graph and REQUIRES explicit confirmation (`confirmed=True`);
+    without it the tool falls back to the safe view and asks to confirm.
+    `scope` is typically empty — the graph is read from graph.json, not chunks.
     """
     tool: Literal["grafo"] = "grafo"
     view: Literal["safe", "full"] = "safe"
@@ -180,7 +180,7 @@ class GraphOutput(ToolOutput):
     view: Literal["safe", "full"] = "safe"
     nodes: list[GraphNode] = Field(default_factory=list)
     edges: list[GraphEdge] = Field(default_factory=list)
-    # True when the safe view hid nodes/edges beyond the student's progress.
+    # True when the safe view hid nodes/edges beyond max_progress_section.
     truncated_by_progress: bool = False
     # True when "full" was requested without confirmation → safe view returned.
     requires_confirmation: bool = False
