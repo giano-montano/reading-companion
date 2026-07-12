@@ -33,9 +33,9 @@ function buildBlocks() {
   const blocks = [];
   let cursor = 0;
   let n = 0;
-  const push = (type, text, chunkId, isNarrative = true) => {
+  const push = (type, text, chunkId, isNarrative = true, questions = undefined) => {
     const isBandera = type === "BANDERA";
-    blocks.push({
+    const block = {
       id_block: `${BOOK_ID}::block::${n++}`,
       type,
       text,
@@ -43,7 +43,9 @@ function buildBlocks() {
       char_start: isBandera || !chunkId ? -1 : cursor,
       char_end: isBandera || !chunkId ? -1 : cursor + text.length,
       is_narrative: isNarrative,
-    });
+    };
+    if (questions !== undefined) block.questions = questions;
+    blocks.push(block);
     if (chunkId && !isBandera) cursor += text.length + 2;
   };
 
@@ -65,8 +67,8 @@ function buildBlocks() {
     // Contrato propuesto: la pregunta del profe viaja como texto de la BANDERA.
     // La segunda bandera queda con el marcador crudo para probar el fallback.
     if (cap === 1)
-      push("BANDERA", "¿Por qué crees que la familia de Gregorio habla de él en voz baja? Responde con tus propias palabras.", null);
-    if (cap === 2) push("BANDERA", "--$CHECKPOINT_LECTURA$--", null);
+      push("BANDERA", "--$CHECKPOINT_LECTURA$--", null, false, ["¿Por qué crees que la familia de Gregorio habla de él en voz baja? Responde con tus propias palabras."]);
+    if (cap === 2) push("BANDERA", "--$CHECKPOINT_LECTURA$--", null, false);
   }
   return blocks;
 }

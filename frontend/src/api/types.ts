@@ -32,6 +32,8 @@ export interface ReaderBlock {
   char_start: number;
   char_end: number;
   is_narrative: boolean;
+  /** Preguntas de comprensión del checkpoint (solo en bloques BANDERA). */
+  questions?: string[];
 }
 
 export interface ReaderResponse {
@@ -166,12 +168,13 @@ export function chunkIndexOf(chunkId: string | null): number | null {
 export const CHECKPOINT_MARKER = "--$CHECKPOINT_LECTURA$--";
 
 /**
- * Pregunta de comprensión de un checkpoint. Contrato PROPUESTO (pendiente de
- * confirmar con backend): la pregunta del profe viaja como texto del bloque
- * BANDERA. Si el bloque aún trae el marcador crudo, no hay pregunta.
+ * Pregunta de comprensión de un checkpoint. La pregunta viaja en el campo
+ * `questions` (lista) del bloque BANDERA. Si el campo no existe, se cae
+ * al `text` como fallback (marcador crudo = sin pregunta).
  */
 export function checkpointQuestion(block: ReaderBlock): string | null {
   if (block.type !== "BANDERA") return null;
+  if (block.questions && block.questions.length > 0) return block.questions[0];
   const text = block.text.trim();
   if (!text || text === CHECKPOINT_MARKER) return null;
   return text;
