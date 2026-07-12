@@ -125,6 +125,7 @@ export type ChatEvent =
       data: { citations: Citation[]; answered: boolean; ok: boolean };
     }
   | { event: "clarify"; data: { clarification: string; clarify_count: number } }
+  | { event: "evaluation"; data: { attempt_detected: boolean; ok: boolean } }
   | { event: "image_job"; data: { job_id: string; poll_url: string } }
   | { event: "notice"; data: { tool: string; message: string } }
   | { event: "error"; data: { message: string } }

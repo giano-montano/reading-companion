@@ -1,13 +1,12 @@
-// Verificación e2e de la calibración del tracking de lectura.
+// Verificación e2e: calibración del tracking + flujo de checkpoint con gate.
 //
-// Compara, en varios puntos de scroll, lo que la barra de estado reporta
-// ("viendo" / "leído hasta el chunk") contra la verdad medida con
-// getBoundingClientRect sobre los bloques [data-chunk], usando los mismos
-// offsets del hook (TOP_OFFSET=64 del header sticky, BOTTOM_OFFSET=40 de la
-// barra). También verifica que el progreso sea monótono al volver arriba.
+// Compara la barra de estado contra la verdad medida en el DOM (mismos
+// offsets del hook), y ejercita el flujo completo de evaluación: el texto se
+// corta en el gate, la pregunta dispara cuando la bandera está casi arriba,
+// responder en el chat libera el gate, y las fuentes son chips numerados.
 //
-// Requiere el mock y la app corriendo:  npm run mock  +  npm run dev
-// Uso:  npm run e2e:tracking
+// Requiere el mock y la app corriendo (ver npm run mock / npm run dev).
+// Uso:  APP_URL=http://localhost:5173 npm run e2e:tracking
 import { chromium } from "playwright";
 
 const APP_URL = process.env.APP_URL ?? "http://localhost:5173";
@@ -56,6 +55,7 @@ async function measuredState() {
   );
 }
 
+let expectedMax = 0;
 async function compareAt(label) {
   await page.waitForTimeout(300); // deja actuar al IntersectionObserver
   const reported = await reportedState();
@@ -65,65 +65,99 @@ async function compareAt(label) {
     `${label}: "viendo" coincide con los chunks visibles`,
     `barra=[${reported.viendo}] medido=[${measured.viendo}]`,
   );
+  expectedMax = Math.max(expectedMax, measured.passedMax);
+  check(
+    reported.max === expectedMax,
+    `${label}: "leído hasta" correcto y monótono`,
+    `barra=${reported.max} esperado=${expectedMax}`,
+  );
   return { reported, measured };
 }
 
-// 1. Arriba del todo: "leído hasta" = el chunk visible más alto.
-let { reported, measured } = await compareAt("inicio");
-check(
-  reported.max === measured.passedMax,
-  "inicio: leído hasta = chunk visible más alto",
-  `barra=${reported.max} medido=${measured.passedMax}`,
-);
+// 1. Arriba del todo.
+await compareAt("inicio");
 
-// 2. Scroll descendente por pasos, verificando en cada parada.
-const pageHeight = await page.evaluate(() => document.body.scrollHeight);
-let expectedMax = 0;
-for (let y = 500; y < pageHeight; y += 700) {
-  await page.evaluate((py) => window.scrollTo(0, py), y);
-  const { reported: rep, measured: mea } = await compareAt(`scroll@${y}px`);
-  expectedMax = Math.max(expectedMax, mea.passedMax);
-  check(
-    rep.max === expectedMax,
-    `scroll@${y}px: "leído hasta" correcto y monótono`,
-    `barra=${rep.max} esperado=${expectedMax}`,
+// 2. El gate corta el texto: solo se ve la primera sección (un checkpoint) y
+//    la pregunta aún NO está en el chat (la bandera no llegó arriba).
+const checkpointsAtStart = await page.$$eval(".checkpoint", (els) => els.length);
+check(checkpointsAtStart === 1, "el texto se corta en el primer gate", `checkpoints=${checkpointsAtStart}`);
+let chatText = await page.textContent(".chat-messages");
+check(!chatText.includes("Pregunta de comprensión"), "la pregunta no se adelanta al inicio");
+
+// 3. Bajar por pasos hasta que el gate llegue casi arriba y dispare.
+let fired = false;
+for (let i = 0; i < 20 && !fired; i++) {
+  await page.evaluate(() => window.scrollBy(0, 600));
+  await compareAt(`bajando(${i})`);
+  fired = await page.evaluate(() => document.querySelector(".gate-actions") !== null);
+  const atBottom = await page.evaluate(
+    () => scrollY + innerHeight >= document.body.scrollHeight - 2,
   );
+  if (atBottom && !fired) break;
 }
+check(fired, "la pregunta dispara cuando el gate está casi arriba");
+chatText = await page.textContent(".chat-messages");
+check(chatText.includes("Pregunta de comprensión"), "la pregunta aparece en el chat");
 
-// 3. De vuelta arriba: "viendo" se recalcula, "leído hasta" NO baja.
-await page.evaluate(() => window.scrollTo(0, 0));
-({ reported } = await compareAt("de vuelta arriba"));
-check(
-  reported.max === expectedMax,
-  "de vuelta arriba: el progreso no retrocede (monótono)",
-  `barra=${reported.max} esperado=${expectedMax}`,
+// 4. Responder en el chat libera el gate y revela la siguiente sección.
+await page.fill(".chat-input textarea", "Porque están preocupados por Gregorio");
+await page.press(".chat-input textarea", "Enter");
+await page.waitForSelector('.chat-messages :text("(evaluación mock)")', { timeout: 30_000 });
+check(true, "la respuesta gatilla la rama evaluación y llega feedback");
+await page.waitForFunction(() => document.querySelectorAll(".checkpoint").length === 2, {
+  timeout: 5_000,
+});
+check(true, "el gate se libera al responder y se revela la siguiente sección");
+
+// 5. Seguir hasta el final (la 2ª bandera no tiene pregunta: no bloquea).
+for (let i = 0; i < 20; i++) {
+  await page.evaluate(() => window.scrollBy(0, 700));
+  await compareAt(`final(${i})`);
+  const atBottom = await page.evaluate(
+    () => scrollY + innerHeight >= document.body.scrollHeight - 2,
+  );
+  if (atBottom) break;
+}
+const questionCount = await page.$$eval(".chat-messages .msg", (msgs) =>
+  msgs.filter((m) => m.textContent.includes("Pregunta de comprensión")).length,
 );
+check(questionCount === 1, "solo la bandera con pregunta generó mensaje en el chat");
 
-// 4. Los botones de ilustrar tienen tooltip.
+// 6. De vuelta arriba: el progreso no retrocede.
+await page.evaluate(() => window.scrollTo(0, 0));
+await compareAt("de vuelta arriba");
+
+// 7. Tooltips en los botones de ilustrar.
 const untitled = await page.$$eval(".illustrate-bar button", (btns) =>
   btns.filter((b) => !b.title).length,
 );
 check(untitled === 0, "los 4 botones de ilustrar tienen tooltip");
 
-// 5. Flujo de checkpoint: al pasar por la BANDERA con pregunta, esta se
-//    despliega en el chat; la respuesta viaja con pending_question=true y
-//    vuelve el feedback de evaluación.
-const chatText = await page.textContent(".chat-messages");
+// 8. Panel NER: renderiza los chunk_elements del reader (anti-spoiler aparte).
+const panelText = await page.textContent(".elements-panel").catch(() => null);
 check(
-  chatText.includes("Pregunta de comprensión"),
-  "al llegar al fin de sección la pregunta aparece en el chat",
+  panelText !== null && panelText.includes("Gregorio"),
+  "el panel de elementos renderiza los chunk_elements del reader",
 );
-await page.fill(".chat-input input", "Porque están preocupados por Gregorio");
-await page.press(".chat-input input", "Enter");
-await page.waitForSelector('.chat-messages :text("(evaluación mock)")', { timeout: 30_000 });
-check(true, "la respuesta del alumno gatilla la rama evaluación y llega feedback");
 
-// 6. La segunda BANDERA (marcador crudo, sin pregunta) no ensucia el chat.
-const questionCount = await page.$$eval(".chat-messages .msg", (msgs) =>
-  msgs.filter((m) => m.textContent.includes("Pregunta de comprensión")).length,
-);
-check(questionCount === 1, "solo la bandera con pregunta genera mensaje en el chat");
+// 9. Fuentes como chips numerados (sin la palabra "chunk") que navegan al pasaje.
+await page.fill(".chat-input textarea", "¿En qué se convirtió Gregorio?");
+await page.press(".chat-input textarea", "Enter");
+await page.waitForSelector(".msg-citations button", { timeout: 30_000 });
+const citText = await page.textContent(".msg-citations");
+check(!/chunk/i.test(citText), "las fuentes no muestran la palabra 'chunk'", citText.trim());
+const chipLabel = await page.textContent(".msg-citations button");
+check(chipLabel.trim() === "1", "el chip de fuente es un número referencial", chipLabel);
+await page.click(".msg-citations button");
+await page.waitForTimeout(700);
+const citedVisible = await page.evaluate(() => {
+  const el = document.querySelector(".reader-text .cited");
+  if (!el) return false;
+  const r = el.getBoundingClientRect();
+  return r.bottom > 0 && r.top < innerHeight;
+});
+check(citedVisible, "el chip navega al pasaje citado y queda resaltado");
 
 await browser.close();
-console.log(failures === 0 ? "\nTracking calibrado: todo en verde." : `\n${failures} verificaciones fallaron.`);
+console.log(failures === 0 ? "\nTodo en verde." : `\n${failures} verificaciones fallaron.`);
 process.exit(failures === 0 ? 0 : 1);

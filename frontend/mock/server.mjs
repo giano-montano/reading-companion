@@ -64,10 +64,13 @@ function buildBlocks() {
         push("p", `(${chunkId.split("::chunk::")[1]}.${p + 1}) ${frase} ${FRASES[(chunk + p + 2) % FRASES.length]}`, chunkId);
       }
     }
-    // Contrato propuesto: la pregunta del profe viaja como texto de la BANDERA.
-    // La segunda bandera queda con el marcador crudo para probar el fallback.
+    // Contrato real (handoff 2026-07-12): la pregunta viaja en questions[]
+    // y text conserva el marcador crudo. La segunda bandera va sin preguntas
+    // para probar el fallback.
     if (cap === 1)
-      push("BANDERA", "--$CHECKPOINT_LECTURA$--", null, false, ["¿Por qué crees que la familia de Gregorio habla de él en voz baja? Responde con tus propias palabras."]);
+      push("BANDERA", "--$CHECKPOINT_LECTURA$--", null, false, [
+        "¿Por qué crees que la familia de Gregorio habla de él en voz baja? Responde con tus propias palabras.",
+      ]);
     if (cap === 2) push("BANDERA", "--$CHECKPOINT_LECTURA$--", null, false);
   }
   return blocks;
@@ -83,6 +86,33 @@ const READER = {
   book_id: BOOK_ID,
   metadata: { title: BOOK.title, author: BOOK.author, publication_year: BOOK.publication_year },
   blocks: BLOCKS,
+  // Panel NER (contrato del handoff 2026-07-11 backend): entradas por chunk.
+  chunk_elements: {
+    [`${BOOK_ID}::chunk::1`]: {
+      chunk_index: 1,
+      personajes: ["Gregorio Samsa"],
+      lugares: ["su habitación"],
+      objetos_simbolos: ["el reloj de la estación"],
+      temas: ["transformación"],
+      emociones: ["confusión"],
+    },
+    [`${BOOK_ID}::chunk::2`]: {
+      chunk_index: 2,
+      personajes: ["Gregorio", "la familia"],
+      lugares: ["el pasillo"],
+      objetos_simbolos: [],
+      temas: ["alienación"],
+      emociones: ["preocupación"],
+    },
+    [`${BOOK_ID}::chunk::5`]: {
+      chunk_index: 5,
+      personajes: ["Gregorio Samsa"],
+      lugares: ["la casa"],
+      objetos_simbolos: ["la puerta cerrada"],
+      temas: ["deuda familiar"],
+      emociones: ["angustia"],
+    },
+  },
 };
 
 // --- Imagen SVG placeholder (equivale al mock:true del backend real) --------
@@ -137,6 +167,9 @@ createServer(async (req, res) => {
         res.write(sse("token", { delta: m }));
         await new Promise((r) => setTimeout(r, 30));
       }
+      // como el backend real: citations (misma forma) + evaluation, terminales
+      res.write(sse("citations", { citations: [], answered: true, ok: true }));
+      res.write(sse("evaluation", { attempt_detected: message.trim().split(/\s+/).length >= 3, ok: true }));
       res.write(sse("done", {}));
       return res.end();
     }

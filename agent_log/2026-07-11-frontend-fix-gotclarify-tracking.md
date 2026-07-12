@@ -74,9 +74,8 @@ lugar de esperar `reported.max === 0`, alineado con la nueva semántica.
 ## Verificación
 
 - `npm run build` → OK (sin errores TS)
-- Sintaxis Python de contratos → OK (no se tocaron)
 - Commit: `bc2737a` + push a `origin/feature/frontend`
 
 ## Qué NO toqué
 
-Nada fuera de `frontend/` y `agent_log/`.
+En este commit no se tocó nada fuera de `frontend/`.

@@ -119,13 +119,45 @@ main {
   color: #6b5d3d;
 }
 
+.checkpoint-gate p {
+  margin: 0 0 0.75rem;
+}
+
+.gate-actions {
+  display: flex;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+}
+
+.gate-actions button {
+  font: inherit;
+  font-size: 0.9rem;
+  padding: 0.45rem 0.9rem;
+  border: 1px solid #c9b998;
+  border-radius: 8px;
+  background: #fff;
+  cursor: pointer;
+}
+
+.gate-actions .gate-primary {
+  background: #2a5d8f;
+  border-color: #2a5d8f;
+  color: #fff;
+}
+
+/* Deja sitio bajo el gate para que la bandera pueda llegar casi arriba
+   (zona de disparo de la pregunta) aunque sea el último elemento. */
+.gate-spacer {
+  height: 70vh;
+}
+
 .main-reader {
-  max-width: 1200px;
+  max-width: 1400px;
 }
 
 .reader-layout {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 360px;
+  grid-template-columns: minmax(0, 1fr) minmax(400px, 460px);
   gap: 2rem;
   align-items: start;
 }
@@ -320,11 +352,20 @@ main {
 }
 
 .msg-citations {
-  display: block;
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
   margin-top: 0.4rem;
-  padding: 0.15rem 0.5rem;
-  font: inherit;
   font-size: 0.78rem;
+  color: #5c6470;
+}
+
+.msg-citations button {
+  font: inherit;
+  font-size: 0.75rem;
+  min-width: 1.5rem;
+  height: 1.5rem;
+  padding: 0;
   color: #2a5d8f;
   background: #fff;
   border: 1px solid #cfd9e4;
@@ -332,7 +373,7 @@ main {
   cursor: pointer;
 }
 
-.msg-citations:hover {
+.msg-citations button:hover {
   background: #eef4fa;
 }
 
@@ -345,20 +386,27 @@ main {
 
 .chat-input {
   display: flex;
+  align-items: flex-end; /* el botón se ancla abajo cuando el textarea crece */
   gap: 0.5rem;
   padding: 0.75rem;
   border-top: 1px solid #e3ded6;
 }
 
-.chat-input input {
+.chat-input textarea {
   flex: 1;
   font: inherit;
   padding: 0.5rem 0.75rem;
   border: 1px solid #d5cec2;
   border-radius: 8px;
+  resize: none;              /* la altura la maneja el auto-grow en JS */
+  min-height: 2.5rem;
+  max-height: 9.5rem;        /* ~5-6 líneas; luego scrollea dentro del campo */
+  line-height: 1.4;
+  overflow-y: auto;
 }
 
 .chat-input button {
+  flex-shrink: 0;
   font: inherit;
   padding: 0.5rem 1rem;
   border: none;

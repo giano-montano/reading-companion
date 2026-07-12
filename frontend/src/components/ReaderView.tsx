@@ -1,8 +1,8 @@
-import { memo, useCallback, useEffect, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { getReader } from "../api/client";
 import type { Citation, ReaderBlock, ReaderResponse } from "../api/types";
 import { checkpointQuestion, chunkIndexOf } from "../api/types";
-import { BOTTOM_OFFSET, TOP_OFFSET, useReadingTracker } from "../hooks/useReadingTracker";
+import { TOP_OFFSET, useReadingTracker } from "../hooks/useReadingTracker";
 import { ChatPanel } from "./ChatPanel";
 import { ElementsPanel } from "./ElementsPanel";
 import { IllustrateBar } from "./IllustrateBar";
@@ -42,11 +42,14 @@ export function ReaderView({ bookId, onBack }: Props) {
   const [state, setState] = useState<ReaderState>({ status: "loading" });
   const [citations, setCitations] = useState<Citation[]>([]);
   const [checkpoint, setCheckpoint] = useState<CheckpointPrompt | null>(null);
+  // Checkpoints resueltos (respondidos en el chat o saltados por el alumno).
+  const [cleared, setCleared] = useState<ReadonlySet<string>>(new Set());
+  const [skippedId, setSkippedId] = useState<string | null>(null);
   const { readingState, observeBlock } = useReadingTracker();
 
-  // Checkpoints: cuando el foco llega al fin de una sección (su BANDERA entra
-  // al viewport), se gatilla la pregunta de comprensión en el chat. Una vez
-  // por bandera. Mismo patrón de ciclo de vida que useReadingTracker.
+  // La pregunta se gatilla cuando la BANDERA está CASI ARRIBA del viewport
+  // (sección realmente terminada), no apenas asoma por abajo: la zona de
+  // intersección es solo la franja superior (35%) bajo el header.
   const checkpointObserver = useRef<IntersectionObserver | null>(null);
   const checkpointEls = useRef(new Map<Element, CheckpointPrompt>());
   const firedCheckpoints = useRef(new Set<string>());
@@ -62,7 +65,7 @@ export function ReaderView({ bookId, onBack }: Props) {
           setCheckpoint(prompt);
         }
       },
-      { threshold: 0, rootMargin: `-${TOP_OFFSET}px 0px -${BOTTOM_OFFSET}px 0px` },
+      { threshold: 0, rootMargin: `-${TOP_OFFSET}px 0px -65% 0px` },
     );
     checkpointObserver.current = observer;
     for (const el of checkpointEls.current.keys()) observer.observe(el);
@@ -87,6 +90,9 @@ export function ReaderView({ bookId, onBack }: Props) {
     let cancelled = false;
     setState({ status: "loading" });
     setCitations([]);
+    setCheckpoint(null);
+    setCleared(new Set());
+    setSkippedId(null);
     getReader(bookId)
       .then((reader) => {
         if (!cancelled) setState({ status: "ready", reader });
@@ -101,14 +107,48 @@ export function ReaderView({ bookId, onBack }: Props) {
 
   const blocks = state.status === "ready" ? state.reader.blocks : [];
 
+  // Gate anti scroll-dump: el texto se corta en el primer checkpoint con
+  // pregunta sin resolver. El alumno responde en el chat o lo salta; recién
+  // ahí se revela la siguiente sección (y sus preguntas).
+  const { visibleBlocks, activeGateId } = useMemo(() => {
+    const idx = blocks.findIndex(
+      (b) => checkpointQuestion(b) !== null && !cleared.has(b.id_block),
+    );
+    if (idx === -1) return { visibleBlocks: blocks, activeGateId: null };
+    return { visibleBlocks: blocks.slice(0, idx + 1), activeGateId: blocks[idx].id_block };
+  }, [blocks, cleared]);
+
+  // El gate muestra el prompt de saltar solo cuando su pregunta ya se disparó.
+  const gateFired = activeGateId !== null && checkpoint?.id === activeGateId;
+
+  const clearGate = useCallback((id: string) => {
+    setCleared((prev) => new Set(prev).add(id));
+  }, []);
+
+  const handleSkip = useCallback(
+    (id: string) => {
+      clearGate(id);
+      setSkippedId(id); // ChatPanel baja pending_question y avisa al alumno
+    },
+    [clearGate],
+  );
+
+  const handleAnswered = useCallback(
+    (checkpointId: string) => {
+      clearGate(checkpointId);
+    },
+    [clearGate],
+  );
+
   const handleCitations = useCallback(
-    (cits: Citation[], scrollToSource: boolean) => {
+    (cits: Citation[], scrollToSource: boolean, target?: Citation) => {
       setCitations(cits);
       if (!scrollToSource) return;
-      const target = blocks.find((b) => isCited(b, cits));
-      if (target) {
+      const wanted = target ? [target] : cits;
+      const block = blocks.find((b) => isCited(b, wanted));
+      if (block) {
         document
-          .getElementById(target.id_block)
+          .getElementById(block.id_block)
           ?.scrollIntoView({ behavior: "smooth", block: "center" });
       }
     },
@@ -141,10 +181,13 @@ export function ReaderView({ bookId, onBack }: Props) {
 
       <div className="reader-layout">
         <BlockList
-          blocks={blocks}
+          blocks={visibleBlocks}
           observeBlock={observeBlock}
           observeCheckpoint={observeCheckpoint}
           citations={citations}
+          activeGateId={activeGateId}
+          gateFired={gateFired}
+          onSkip={handleSkip}
         />
         <div className="reader-side">
           <ElementsPanel
@@ -156,6 +199,8 @@ export function ReaderView({ bookId, onBack }: Props) {
             readingState={readingState}
             onCitations={handleCitations}
             checkpoint={checkpoint}
+            skippedCheckpointId={skippedId}
+            onQuestionAnswered={handleAnswered}
           />
         </div>
       </div>
@@ -174,17 +219,23 @@ export function ReaderView({ bookId, onBack }: Props) {
   );
 }
 
-/** Memoizado: el texto solo se re-renderiza si cambian bloques o citas. */
+/** Memoizado: el texto solo se re-renderiza si cambian bloques, citas o gate. */
 const BlockList = memo(function BlockList({
   blocks,
   observeBlock,
   observeCheckpoint,
   citations,
+  activeGateId,
+  gateFired,
+  onSkip,
 }: {
   blocks: ReaderBlock[];
   observeBlock: (block: ReaderBlock) => (el: HTMLElement | null) => void;
   observeCheckpoint: (block: ReaderBlock) => (el: HTMLElement | null) => void;
   citations: Citation[];
+  activeGateId: string | null;
+  gateFired: boolean;
+  onSkip: (id: string) => void;
 }) {
   return (
     <article className="reader-text">
@@ -195,8 +246,14 @@ const BlockList = memo(function BlockList({
           observeBlock={observeBlock}
           observeCheckpoint={observeCheckpoint}
           cited={isCited(block, citations)}
+          isActiveGate={block.id_block === activeGateId}
+          gateFired={gateFired}
+          onSkip={onSkip}
         />
       ))}
+      {/* Espaciador bajo el gate: permite que la bandera llegue casi arriba
+          (donde se dispara la pregunta) aunque sea el último elemento. */}
+      {activeGateId !== null && <div className="gate-spacer" aria-hidden="true" />}
     </article>
   );
 });
@@ -206,22 +263,48 @@ function Block({
   observeBlock,
   observeCheckpoint,
   cited,
+  isActiveGate,
+  gateFired,
+  onSkip,
 }: {
   block: ReaderBlock;
   observeBlock: (block: ReaderBlock) => (el: HTMLElement | null) => void;
   observeCheckpoint: (block: ReaderBlock) => (el: HTMLElement | null) => void;
   cited: boolean;
+  isActiveGate: boolean;
+  gateFired: boolean;
+  onSkip: (id: string) => void;
 }) {
   if (block.type === "BANDERA") {
-    // Fin de sección anotado por el profesor. Si trae pregunta, al entrar al
-    // viewport se despliega en el chat (flujo pending_question); si aún viene
-    // el marcador crudo, es solo una pausa visual.
     const hasQuestion = checkpointQuestion(block) !== null;
+    if (!hasQuestion) {
+      return <aside className="checkpoint">✋ Pausa de lectura.</aside>;
+    }
     return (
-      <aside ref={observeCheckpoint(block)} className="checkpoint">
-        {hasQuestion
-          ? "✋ Fin de la sección — responde la pregunta de comprensión en el chat 👉"
-          : "✋ Pausa de lectura — aquí aparecerá una pregunta de comprensión (próximamente)."}
+      <aside ref={observeCheckpoint(block)} className="checkpoint checkpoint-gate">
+        {isActiveGate && gateFired ? (
+          <>
+            <p>
+              ✋ Hay una pregunta de comprensión esperándote en el chat. ¿Deseas
+              saltarla y seguir leyendo?
+            </p>
+            <div className="gate-actions">
+              <button onClick={() => onSkip(block.id_block)}>Sí, seguir leyendo</button>
+              <button
+                className="gate-primary"
+                onClick={() =>
+                  document
+                    .querySelector<HTMLTextAreaElement>(".chat-input textarea")
+                    ?.focus()
+                }
+              >
+                No, la responderé en el chat 👉
+              </button>
+            </div>
+          </>
+        ) : (
+          "✋ Fin de la sección — al terminar de leerla aparecerá una pregunta en el chat."
+        )}
       </aside>
     );
   }
