@@ -294,7 +294,7 @@ function Block({
                 className="gate-primary"
                 onClick={() =>
                   document
-                    .querySelector<HTMLInputElement>(".chat-input input")
+                    .querySelector<HTMLTextAreaElement>(".chat-input textarea")
                     ?.focus()
                 }
               >

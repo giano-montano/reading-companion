@@ -152,12 +152,12 @@ main {
 }
 
 .main-reader {
-  max-width: 1200px;
+  max-width: 1400px;
 }
 
 .reader-layout {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 360px;
+  grid-template-columns: minmax(0, 1fr) minmax(400px, 460px);
   gap: 2rem;
   align-items: start;
 }
@@ -386,20 +386,27 @@ main {
 
 .chat-input {
   display: flex;
+  align-items: flex-end; /* el botón se ancla abajo cuando el textarea crece */
   gap: 0.5rem;
   padding: 0.75rem;
   border-top: 1px solid #e3ded6;
 }
 
-.chat-input input {
+.chat-input textarea {
   flex: 1;
   font: inherit;
   padding: 0.5rem 0.75rem;
   border: 1px solid #d5cec2;
   border-radius: 8px;
+  resize: none;              /* la altura la maneja el auto-grow en JS */
+  min-height: 2.5rem;
+  max-height: 9.5rem;        /* ~5-6 líneas; luego scrollea dentro del campo */
+  line-height: 1.4;
+  overflow-y: auto;
 }
 
 .chat-input button {
+  flex-shrink: 0;
   font: inherit;
   padding: 0.5rem 1rem;
   border: none;
