@@ -48,12 +48,22 @@ export function ChatPanel({
   const [phase, setPhase] = useState<"idle" | "thinking" | "streaming">("idle");
   const agentStateRef = useRef<AgentState>(emptyAgentState());
   const listRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
   const lastCheckpointId = useRef<string | null>(null);
   const nextIdRef = useRef(1); // ref y no módulo: sobrevive HMR sin colisionar ids
 
   useEffect(() => {
     listRef.current?.scrollTo({ top: listRef.current.scrollHeight });
   }, [items, phase]);
+
+  // Auto-grow del textarea: crece con el texto hasta el max-height del CSS,
+  // y vuelve a una línea cuando se limpia (tras enviar).
+  useEffect(() => {
+    const ta = inputRef.current;
+    if (!ta) return;
+    ta.style.height = "auto";
+    ta.style.height = `${ta.scrollHeight}px`;
+  }, [input]);
 
   // Checkpoint alcanzado → la pregunta entra al chat y la próxima respuesta
   // del alumno viaja con pending_question=true (flujo de EVALUACIÓN).
@@ -217,10 +227,20 @@ export function ChatPanel({
           void send();
         }}
       >
-        <input
+        <textarea
+          ref={inputRef}
           value={input}
           onChange={(e) => setInput(e.target.value)}
-          placeholder="Escribe tu pregunta…"
+          onKeyDown={(e) => {
+            // Enter envía; Shift+Enter inserta salto de línea para revisar
+            // preguntas largas antes de mandarlas.
+            if (e.key === "Enter" && !e.shiftKey) {
+              e.preventDefault();
+              void send();
+            }
+          }}
+          placeholder="Escribe tu pregunta…  (Enter envía · Shift+Enter salta de línea)"
+          rows={1}
           disabled={phase !== "idle"}
         />
         <button type="submit" disabled={phase !== "idle" || !input.trim()}>

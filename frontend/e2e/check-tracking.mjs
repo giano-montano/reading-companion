@@ -100,8 +100,8 @@ chatText = await page.textContent(".chat-messages");
 check(chatText.includes("Pregunta de comprensión"), "la pregunta aparece en el chat");
 
 // 4. Responder en el chat libera el gate y revela la siguiente sección.
-await page.fill(".chat-input input", "Porque están preocupados por Gregorio");
-await page.press(".chat-input input", "Enter");
+await page.fill(".chat-input textarea", "Porque están preocupados por Gregorio");
+await page.press(".chat-input textarea", "Enter");
 await page.waitForSelector('.chat-messages :text("(evaluación mock)")', { timeout: 30_000 });
 check(true, "la respuesta gatilla la rama evaluación y llega feedback");
 await page.waitForFunction(() => document.querySelectorAll(".checkpoint").length === 2, {
@@ -141,8 +141,8 @@ check(
 );
 
 // 9. Fuentes como chips numerados (sin la palabra "chunk") que navegan al pasaje.
-await page.fill(".chat-input input", "¿En qué se convirtió Gregorio?");
-await page.press(".chat-input input", "Enter");
+await page.fill(".chat-input textarea", "¿En qué se convirtió Gregorio?");
+await page.press(".chat-input textarea", "Enter");
 await page.waitForSelector(".msg-citations button", { timeout: 30_000 });
 const citText = await page.textContent(".msg-citations");
 check(!/chunk/i.test(citText), "las fuentes no muestran la palabra 'chunk'", citText.trim());
