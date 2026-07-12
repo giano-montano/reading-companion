@@ -140,6 +140,24 @@ check(
   "el panel de elementos renderiza los chunk_elements del reader",
 );
 
+// 8b. Guardia de ambigüedad: los nombres completos se muestran; "Samsa" a
+//     secas (cabe en 3 personajes) se descarta, y "Gregorio" suelto se fusiona.
+const chips = await page.$$eval(".element-chip", (els) =>
+  els.map((e) => e.textContent.replace(/[^\p{L}\s]/gu, "").trim()),
+);
+check(
+  chips.some((c) => c.includes("Gregorio Samsa")) &&
+    chips.some((c) => c.includes("señor Samsa")) &&
+    chips.some((c) => c.includes("señora Samsa")),
+  "el panel muestra los nombres completos (personajes distintos)",
+  `chips=${JSON.stringify(chips)}`,
+);
+check(
+  !chips.includes("Samsa") && !chips.includes("Gregorio"),
+  "la guardia descarta 'Samsa' ambiguo y fusiona 'Gregorio' suelto",
+  `chips=${JSON.stringify(chips)}`,
+);
+
 // 9. Fuentes como chips numerados (sin la palabra "chunk") que navegan al pasaje.
 await page.fill(".chat-input textarea", "¿En qué se convirtió Gregorio?");
 await page.press(".chat-input textarea", "Enter");
@@ -157,6 +175,29 @@ const citedVisible = await page.evaluate(() => {
   return r.bottom > 0 && r.top < innerHeight;
 });
 check(citedVisible, "el chip navega al pasaje citado y queda resaltado");
+
+// 10. La ventana de ilustración se puede arrastrar (no queda fija sobre el chat).
+await page.click(".illustrate-bar button:has-text('toda la obra')");
+await page.waitForSelector(".illustration-card img", { timeout: 30_000 });
+const before = await page.evaluate(() => {
+  const r = document.querySelector(".illustration-card").getBoundingClientRect();
+  return { x: Math.round(r.left), y: Math.round(r.top) };
+});
+const handle = await page.$(".illustration-drag");
+const box = await handle.boundingBox();
+await page.mouse.move(box.x + 40, box.y + 10);
+await page.mouse.down();
+await page.mouse.move(box.x - 220, box.y - 140, { steps: 8 });
+await page.mouse.up();
+const after = await page.evaluate(() => {
+  const r = document.querySelector(".illustration-card").getBoundingClientRect();
+  return { x: Math.round(r.left), y: Math.round(r.top) };
+});
+check(
+  Math.abs(after.x - before.x) > 80 && Math.abs(after.y - before.y) > 60,
+  "la ventana de ilustración se mueve al arrastrarla",
+  `antes=(${before.x},${before.y}) después=(${after.x},${after.y})`,
+);
 
 await browser.close();
 console.log(failures === 0 ? "\nTodo en verde." : `\n${failures} verificaciones fallaron.`);
