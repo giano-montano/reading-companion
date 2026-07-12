@@ -132,7 +132,7 @@ def create_image(
         width=payload.width,
         height=payload.height,
         seed=payload.seed,
-        allow_text_in_image=payload.allow_text_in_image,
+        allow_text_in_image=False, #payload.allow_text_in_image,
         mock=payload.mock,
     )
 

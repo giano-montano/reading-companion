@@ -36,6 +36,21 @@ export interface ReaderBlock {
   questions?: string[];
 }
 
+/**
+ * Panel NER: elementos narrativos de UN chunk (clave top-level
+ * `chunk_elements` del reader, generada por
+ * scripts/extract_narrative_elements.py). Cada entrada solo describe texto
+ * ya leído, así que agregar hasta max_progress_chunk_index nunca spoilea.
+ */
+export interface ChunkElements {
+  chunk_index: number;
+  personajes: string[];
+  lugares: string[];
+  objetos_simbolos: string[];
+  temas: string[];
+  emociones: string[];
+}
+
 export interface ReaderResponse {
   book_id: string;
   metadata: {
@@ -44,6 +59,8 @@ export interface ReaderResponse {
     publication_year: number | null;
   };
   blocks: ReaderBlock[];
+  /** Ausente si el libro aún no fue anotado (hoy: solo la_metamorfosis). */
+  chunk_elements?: Record<string, ChunkElements>;
 }
 
 // --- Estado que el frontend mantiene y reenvía (backend stateless) ---------
