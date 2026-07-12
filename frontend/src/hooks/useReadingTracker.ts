@@ -5,14 +5,25 @@
  *  - focus_chunk_ids: chunk_ids distintos de los bloques visibles en el
  *    viewport ahora mismo ("lo que veo").
  *  - max_progress_chunk_index: mayor N de ::chunk::N entre los bloques que el
- *    alumno ya dejó atrás (salieron del viewport por arriba). Monótono: nunca
- *    baja. Es el gate anti-spoiler del QA-RAG.
+ *    alumno ya dejó atrás (salieron por arriba). Monótono: nunca baja. Es el
+ *    gate anti-spoiler del QA-RAG.
  *
- * Los bloques sin chunk_id (BANDERA, paratexto sin chunk) se ignoran.
+ * Calibración: un bloque tapado por el header sticky (TOP_OFFSET) o por la
+ * barra de estado inferior (BOTTOM_OFFSET) NO cuenta como visible. "Dejado
+ * atrás" = su borde inferior quedó por encima del header.
+ *
+ * Ciclo de vida: el useEffect es dueño del observer (lo crea, observa todo lo
+ * registrado y lo destruye). Los ref callbacks solo registran elementos. Así
+ * el tracking sobrevive al desmontaje/remontaje simulado de StrictMode, que
+ * antes lo dejaba congelado (bug detectado por Erick el 2026-07-11).
  */
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { ReaderBlock, ReadingState } from "../api/types";
 import { chunkIndexOf, emptyReadingState } from "../api/types";
+
+/** Zona visible real: viewport menos header sticky y barra de estado. */
+export const TOP_OFFSET = 64;
+export const BOTTOM_OFFSET = 40;
 
 export function useReadingTracker(): {
   readingState: ReadingState;
@@ -24,65 +35,69 @@ export function useReadingTracker(): {
   const visibleEls = useRef(new Set<Element>());
   const [readingState, setReadingState] = useState<ReadingState>(emptyReadingState());
 
-  const handleEntries = useCallback((entries: IntersectionObserverEntry[]) => {
-    let maxPassed = 0;
-    for (const entry of entries) {
-      const block = blockByEl.current.get(entry.target);
-      if (!block) continue;
-      if (entry.isIntersecting) {
-        visibleEls.current.add(entry.target);
-      } else {
-        visibleEls.current.delete(entry.target);
-        // Salió por arriba del viewport → el alumno lo dejó atrás (leído).
-        if (entry.boundingClientRect.bottom <= 0) {
-          const idx = chunkIndexOf(block.chunk_id);
-          if (idx !== null) maxPassed = Math.max(maxPassed, idx);
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      (entries) => {
+        let maxPassed = 0;
+        for (const entry of entries) {
+          const block = blockByEl.current.get(entry.target);
+          if (!block) continue;
+          if (entry.isIntersecting) {
+            visibleEls.current.add(entry.target);
+          } else {
+            visibleEls.current.delete(entry.target);
+            // Salió por arriba (queda sobre el header) → dejado atrás.
+            if (entry.boundingClientRect.bottom <= TOP_OFFSET) {
+              const idx = chunkIndexOf(block.chunk_id);
+              if (idx !== null) maxPassed = Math.max(maxPassed, idx);
+            }
+          }
         }
-      }
-    }
 
-    const focus = [
-      ...new Set(
-        [...visibleEls.current]
-          .map((el) => blockByEl.current.get(el)?.chunk_id)
-          .filter((id): id is string => id != null),
-      ),
-    ].sort((a, b) => (chunkIndexOf(a) ?? 0) - (chunkIndexOf(b) ?? 0));
+        const focus = [
+          ...new Set(
+            [...visibleEls.current]
+              .map((el) => blockByEl.current.get(el)?.chunk_id)
+              .filter((id): id is string => id != null),
+          ),
+        ].sort((a, b) => (chunkIndexOf(a) ?? 0) - (chunkIndexOf(b) ?? 0));
 
-    setReadingState((prev) => {
-      const max = Math.max(prev.max_progress_chunk_index, maxPassed);
-      if (
-        max === prev.max_progress_chunk_index &&
-        focus.length === prev.focus_chunk_ids.length &&
-        focus.every((id, i) => id === prev.focus_chunk_ids[i])
-      ) {
-        return prev; // sin cambios → sin re-render
-      }
-      return { focus_chunk_ids: focus, max_progress_chunk_index: max };
-    });
+        setReadingState((prev) => {
+          const max = Math.max(prev.max_progress_chunk_index, maxPassed);
+          if (
+            max === prev.max_progress_chunk_index &&
+            focus.length === prev.focus_chunk_ids.length &&
+            focus.every((id, i) => id === prev.focus_chunk_ids[i])
+          ) {
+            return prev; // sin cambios → sin re-render
+          }
+          return { focus_chunk_ids: focus, max_progress_chunk_index: max };
+        });
+      },
+      // Recorta la zona de intersección: header arriba, barra de estado abajo.
+      { threshold: 0, rootMargin: `-${TOP_OFFSET}px 0px -${BOTTOM_OFFSET}px 0px` },
+    );
+
+    observerRef.current = observer;
+    // Re-observa todo lo ya registrado (StrictMode remonta el efecto,
+    // los refs no vuelven a correr).
+    for (const el of blockByEl.current.keys()) observer.observe(el);
+
+    return () => {
+      observer.disconnect();
+      observerRef.current = null;
+      visibleEls.current.clear();
+    };
   }, []);
-
-  // Lazy: los ref callbacks corren antes que los efectos del padre.
-  const getObserver = useCallback(() => {
-    observerRef.current ??= new IntersectionObserver(handleEntries, { threshold: 0 });
-    return observerRef.current;
-  }, [handleEntries]);
 
   const observeBlock = useCallback(
     (block: ReaderBlock) => (el: HTMLElement | null) => {
       if (el) {
         blockByEl.current.set(el, block);
-        getObserver().observe(el);
+        observerRef.current?.observe(el);
       }
-    },
-    [getObserver],
-  );
-
-  useEffect(
-    () => () => {
-      observerRef.current?.disconnect();
-      blockByEl.current.clear();
-      visibleEls.current.clear();
+      // el === null (desmontaje): el effect posee el ciclo de vida; un
+      // elemento fuera del DOM no genera intersecciones y no estorba.
     },
     [],
   );

@@ -71,12 +71,14 @@ export function IllustrateBar({ bookId, blocks, readingState }: Props) {
         <span>🖌️ Ilustrar:</span>
         <button
           disabled={busy || focus.length === 0}
+          title="Dibuja lo que tienes en pantalla en este momento"
           onClick={() => void illustrate("lo que veo", { book_id: bookId, scope: "vista", chunk_ids: focus })}
         >
           lo que veo
         </button>
         <button
           disabled={busy || currentSectionChunks.length === 0}
+          title="Dibuja el capítulo que estás leyendo ahora"
           onClick={() =>
             void illustrate("esta sección", {
               book_id: bookId,
@@ -89,6 +91,7 @@ export function IllustrateBar({ bookId, blocks, readingState }: Props) {
         </button>
         <button
           disabled={busy || readingState.max_progress_chunk_index === 0}
+          title="Dibuja un resumen de todo lo que has leído hasta ahora"
           onClick={() =>
             void illustrate("hasta aquí", {
               book_id: bookId,
@@ -101,6 +104,7 @@ export function IllustrateBar({ bookId, blocks, readingState }: Props) {
         </button>
         <button
           disabled={busy}
+          title="Dibuja el libro completo (¡cuidado: puede adelantarte cosas que aún no lees!)"
           onClick={() => void illustrate("toda la obra", { book_id: bookId, scope: "obra" })}
         >
           toda la obra

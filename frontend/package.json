@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite",
     "mock": "node mock/server.mjs",
+    "e2e:tracking": "node e2e/check-tracking.mjs",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview"
   },
@@ -17,6 +18,7 @@
     "@types/react": "^19.2.17",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^6.0.3",
+    "playwright": "^1.61.1",
     "typescript": "^7.0.2",
     "vite": "^8.1.4"
   }

@@ -158,15 +158,16 @@ function Block({
 
   const ref = observeBlock(block);
   const cls = `block${block.is_narrative ? "" : " paratext"}${cited ? " cited" : ""}`;
+  const chunk = block.chunk_id ?? undefined;
 
   switch (block.type) {
     case "h1":
-      return <h1 id={block.id_block} ref={ref} className={cls}>{block.text}</h1>;
+      return <h1 id={block.id_block} data-chunk={chunk} ref={ref} className={cls}>{block.text}</h1>;
     case "h2":
-      return <h2 id={block.id_block} ref={ref} className={cls}>{block.text}</h2>;
+      return <h2 id={block.id_block} data-chunk={chunk} ref={ref} className={cls}>{block.text}</h2>;
     case "h3":
-      return <h3 id={block.id_block} ref={ref} className={cls}>{block.text}</h3>;
+      return <h3 id={block.id_block} data-chunk={chunk} ref={ref} className={cls}>{block.text}</h3>;
     default:
-      return <p id={block.id_block} ref={ref} className={cls}>{block.text}</p>;
+      return <p id={block.id_block} data-chunk={chunk} ref={ref} className={cls}>{block.text}</p>;
   }
 }
