@@ -119,6 +119,38 @@ main {
   color: #6b5d3d;
 }
 
+.checkpoint-gate p {
+  margin: 0 0 0.75rem;
+}
+
+.gate-actions {
+  display: flex;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+}
+
+.gate-actions button {
+  font: inherit;
+  font-size: 0.9rem;
+  padding: 0.45rem 0.9rem;
+  border: 1px solid #c9b998;
+  border-radius: 8px;
+  background: #fff;
+  cursor: pointer;
+}
+
+.gate-actions .gate-primary {
+  background: #2a5d8f;
+  border-color: #2a5d8f;
+  color: #fff;
+}
+
+/* Deja sitio bajo el gate para que la bandera pueda llegar casi arriba
+   (zona de disparo de la pregunta) aunque sea el último elemento. */
+.gate-spacer {
+  height: 70vh;
+}
+
 .main-reader {
   max-width: 1200px;
 }
@@ -204,11 +236,20 @@ main {
 }
 
 .msg-citations {
-  display: block;
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
   margin-top: 0.4rem;
-  padding: 0.15rem 0.5rem;
-  font: inherit;
   font-size: 0.78rem;
+  color: #5c6470;
+}
+
+.msg-citations button {
+  font: inherit;
+  font-size: 0.75rem;
+  min-width: 1.5rem;
+  height: 1.5rem;
+  padding: 0;
   color: #2a5d8f;
   background: #fff;
   border: 1px solid #cfd9e4;
@@ -216,7 +257,7 @@ main {
   cursor: pointer;
 }
 
-.msg-citations:hover {
+.msg-citations button:hover {
   background: #eef4fa;
 }
 
