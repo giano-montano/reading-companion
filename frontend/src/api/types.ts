@@ -161,3 +161,18 @@ export function chunkIndexOf(chunkId: string | null): number | null {
   const n = Number(chunkId.split("::chunk::")[1]);
   return Number.isInteger(n) ? n : null;
 }
+
+/** Marcador crudo que el pipeline pone hoy en los bloques BANDERA. */
+export const CHECKPOINT_MARKER = "--$CHECKPOINT_LECTURA$--";
+
+/**
+ * Pregunta de comprensión de un checkpoint. Contrato PROPUESTO (pendiente de
+ * confirmar con backend): la pregunta del profe viaja como texto del bloque
+ * BANDERA. Si el bloque aún trae el marcador crudo, no hay pregunta.
+ */
+export function checkpointQuestion(block: ReaderBlock): string | null {
+  if (block.type !== "BANDERA") return null;
+  const text = block.text.trim();
+  if (!text || text === CHECKPOINT_MARKER) return null;
+  return text;
+}

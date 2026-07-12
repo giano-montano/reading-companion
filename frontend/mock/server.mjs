@@ -62,6 +62,10 @@ function buildBlocks() {
         push("p", `(${chunkId.split("::chunk::")[1]}.${p + 1}) ${frase} ${FRASES[(chunk + p + 2) % FRASES.length]}`, chunkId);
       }
     }
+    // Contrato propuesto: la pregunta del profe viaja como texto de la BANDERA.
+    // La segunda bandera queda con el marcador crudo para probar el fallback.
+    if (cap === 1)
+      push("BANDERA", "¿Por qué crees que la familia de Gregorio habla de él en voz baja? Responde con tus propias palabras.", null);
     if (cap === 2) push("BANDERA", "--$CHECKPOINT_LECTURA$--", null);
   }
   return blocks;
@@ -119,6 +123,21 @@ createServer(async (req, res) => {
     const { message = "", reading_state = {}, agent_state = {} } = JSON.parse(body || "{}");
 
     res.writeHead(200, { "Content-Type": "text/event-stream" });
+
+    // rama evaluación: el alumno responde una pregunta de comprensión
+    if (agent_state.pending_question) {
+      res.write(sse("route", { tool: "evaluacion" }));
+      await new Promise((r) => setTimeout(r, 800));
+      const feedback =
+        "¡Buena respuesta! Notaste que la familia está preocupada. También podrías " +
+        "fijarte en cómo Gregorio piensa más en su trabajo que en sí mismo. (evaluación mock)";
+      for (const m of feedback.match(/\S+\s*/g)) {
+        res.write(sse("token", { delta: m }));
+        await new Promise((r) => setTimeout(r, 30));
+      }
+      res.write(sse("done", {}));
+      return res.end();
+    }
 
     // rama clarify: mensajes muy cortos, hasta 2 veces (como el router real)
     const clarifyCount = agent_state.clarify_count ?? 0;

@@ -99,6 +99,25 @@ const untitled = await page.$$eval(".illustrate-bar button", (btns) =>
 );
 check(untitled === 0, "los 4 botones de ilustrar tienen tooltip");
 
+// 5. Flujo de checkpoint: al pasar por la BANDERA con pregunta, esta se
+//    despliega en el chat; la respuesta viaja con pending_question=true y
+//    vuelve el feedback de evaluación.
+const chatText = await page.textContent(".chat-messages");
+check(
+  chatText.includes("Pregunta de comprensión"),
+  "al llegar al fin de sección la pregunta aparece en el chat",
+);
+await page.fill(".chat-input input", "Porque están preocupados por Gregorio");
+await page.press(".chat-input input", "Enter");
+await page.waitForSelector('.chat-messages :text("(evaluación mock)")', { timeout: 30_000 });
+check(true, "la respuesta del alumno gatilla la rama evaluación y llega feedback");
+
+// 6. La segunda BANDERA (marcador crudo, sin pregunta) no ensucia el chat.
+const questionCount = await page.$$eval(".chat-messages .msg", (msgs) =>
+  msgs.filter((m) => m.textContent.includes("Pregunta de comprensión")).length,
+);
+check(questionCount === 1, "solo la bandera con pregunta genera mensaje en el chat");
+
 await browser.close();
 console.log(failures === 0 ? "\nTracking calibrado: todo en verde." : `\n${failures} verificaciones fallaron.`);
 process.exit(failures === 0 ? 0 : 1);

@@ -27,20 +27,37 @@ interface Props {
   readingState: ReadingState;
   /** Al llegar citas se resaltan en el texto; con scroll=true además navega. */
   onCitations: (citations: Citation[], scrollToSource: boolean) => void;
+  /** Checkpoint alcanzado: la pregunta del profe se despliega en el chat. */
+  checkpoint: { id: string; question: string } | null;
 }
 
 let nextId = 1;
 
-export function ChatPanel({ bookId, readingState, onCitations }: Props) {
+export function ChatPanel({ bookId, readingState, onCitations, checkpoint }: Props) {
   const [items, setItems] = useState<ChatItem[]>([]);
   const [input, setInput] = useState("");
   const [phase, setPhase] = useState<"idle" | "thinking" | "streaming">("idle");
   const agentStateRef = useRef<AgentState>(emptyAgentState());
   const listRef = useRef<HTMLDivElement>(null);
+  const lastCheckpointId = useRef<string | null>(null);
 
   useEffect(() => {
     listRef.current?.scrollTo({ top: listRef.current.scrollHeight });
   }, [items, phase]);
+
+  // Checkpoint alcanzado → la pregunta entra al chat y la próxima respuesta
+  // del alumno viaja con pending_question=true (flujo de EVALUACIÓN).
+  useEffect(() => {
+    if (!checkpoint || checkpoint.id === lastCheckpointId.current) return;
+    lastCheckpointId.current = checkpoint.id;
+    agentStateRef.current = {
+      ...agentStateRef.current,
+      pending_question: true,
+      pending_question_text: checkpoint.question,
+    };
+    push({ kind: "assistant", text: `📋 Pregunta de comprensión:\n${checkpoint.question}` });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [checkpoint]);
 
   const push = (item: Omit<ChatItem, "id">): number => {
     const id = nextId++;
@@ -127,6 +144,16 @@ export function ChatPanel({ bookId, readingState, onCitations }: Props) {
           { role: "assistant" as const, content: assistantText },
         ].slice(-MAX_HISTORY);
         agentStateRef.current = { ...agentStateRef.current, history, clarify_count: 0 };
+      }
+      // La pregunta de evaluación se responde una sola vez: tras un stream
+      // exitoso (haya o no texto), el flag baja. Si el fetch falló (catch),
+      // se mantiene para reintentar.
+      if (agentStateRef.current.pending_question) {
+        agentStateRef.current = {
+          ...agentStateRef.current,
+          pending_question: false,
+          pending_question_text: "",
+        };
       }
     } catch (err) {
       push({

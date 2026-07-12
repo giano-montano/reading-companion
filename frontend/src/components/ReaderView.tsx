@@ -1,10 +1,15 @@
-import { memo, useCallback, useEffect, useState } from "react";
+import { memo, useCallback, useEffect, useRef, useState } from "react";
 import { getReader } from "../api/client";
 import type { Citation, ReaderBlock, ReaderResponse } from "../api/types";
-import { chunkIndexOf } from "../api/types";
-import { useReadingTracker } from "../hooks/useReadingTracker";
+import { checkpointQuestion, chunkIndexOf } from "../api/types";
+import { BOTTOM_OFFSET, TOP_OFFSET, useReadingTracker } from "../hooks/useReadingTracker";
 import { ChatPanel } from "./ChatPanel";
 import { IllustrateBar } from "./IllustrateBar";
+
+export interface CheckpointPrompt {
+  id: string;
+  question: string;
+}
 
 type ReaderState =
   | { status: "loading" }
@@ -35,7 +40,47 @@ function isCited(block: ReaderBlock, citations: Citation[]): boolean {
 export function ReaderView({ bookId, onBack }: Props) {
   const [state, setState] = useState<ReaderState>({ status: "loading" });
   const [citations, setCitations] = useState<Citation[]>([]);
+  const [checkpoint, setCheckpoint] = useState<CheckpointPrompt | null>(null);
   const { readingState, observeBlock } = useReadingTracker();
+
+  // Checkpoints: cuando el foco llega al fin de una sección (su BANDERA entra
+  // al viewport), se gatilla la pregunta de comprensión en el chat. Una vez
+  // por bandera. Mismo patrón de ciclo de vida que useReadingTracker.
+  const checkpointObserver = useRef<IntersectionObserver | null>(null);
+  const checkpointEls = useRef(new Map<Element, CheckpointPrompt>());
+  const firedCheckpoints = useRef(new Set<string>());
+
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          if (!entry.isIntersecting) continue;
+          const prompt = checkpointEls.current.get(entry.target);
+          if (!prompt || firedCheckpoints.current.has(prompt.id)) continue;
+          firedCheckpoints.current.add(prompt.id);
+          setCheckpoint(prompt);
+        }
+      },
+      { threshold: 0, rootMargin: `-${TOP_OFFSET}px 0px -${BOTTOM_OFFSET}px 0px` },
+    );
+    checkpointObserver.current = observer;
+    for (const el of checkpointEls.current.keys()) observer.observe(el);
+    return () => {
+      observer.disconnect();
+      checkpointObserver.current = null;
+    };
+  }, []);
+
+  const observeCheckpoint = useCallback(
+    (block: ReaderBlock) => (el: HTMLElement | null) => {
+      const question = checkpointQuestion(block);
+      if (el && question) {
+        checkpointEls.current.set(el, { id: block.id_block, question });
+        checkpointObserver.current?.observe(el);
+      }
+    },
+    [],
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -94,8 +139,18 @@ export function ReaderView({ bookId, onBack }: Props) {
       </header>
 
       <div className="reader-layout">
-        <BlockList blocks={blocks} observeBlock={observeBlock} citations={citations} />
-        <ChatPanel bookId={bookId} readingState={readingState} onCitations={handleCitations} />
+        <BlockList
+          blocks={blocks}
+          observeBlock={observeBlock}
+          observeCheckpoint={observeCheckpoint}
+          citations={citations}
+        />
+        <ChatPanel
+          bookId={bookId}
+          readingState={readingState}
+          onCitations={handleCitations}
+          checkpoint={checkpoint}
+        />
       </div>
 
       {/* Barra de desarrollo: visualiza el estado que viajará al backend. */}
@@ -116,10 +171,12 @@ export function ReaderView({ bookId, onBack }: Props) {
 const BlockList = memo(function BlockList({
   blocks,
   observeBlock,
+  observeCheckpoint,
   citations,
 }: {
   blocks: ReaderBlock[];
   observeBlock: (block: ReaderBlock) => (el: HTMLElement | null) => void;
+  observeCheckpoint: (block: ReaderBlock) => (el: HTMLElement | null) => void;
   citations: Citation[];
 }) {
   return (
@@ -129,6 +186,7 @@ const BlockList = memo(function BlockList({
           key={block.id_block}
           block={block}
           observeBlock={observeBlock}
+          observeCheckpoint={observeCheckpoint}
           cited={isCited(block, citations)}
         />
       ))}
@@ -139,19 +197,24 @@ const BlockList = memo(function BlockList({
 function Block({
   block,
   observeBlock,
+  observeCheckpoint,
   cited,
 }: {
   block: ReaderBlock;
   observeBlock: (block: ReaderBlock) => (el: HTMLElement | null) => void;
+  observeCheckpoint: (block: ReaderBlock) => (el: HTMLElement | null) => void;
   cited: boolean;
 }) {
   if (block.type === "BANDERA") {
-    // Checkpoint pedagógico: no es texto (handoff §3). La interacción real
-    // llegará cuando el backend implemente la tool de EVALUACIÓN.
+    // Fin de sección anotado por el profesor. Si trae pregunta, al entrar al
+    // viewport se despliega en el chat (flujo pending_question); si aún viene
+    // el marcador crudo, es solo una pausa visual.
+    const hasQuestion = checkpointQuestion(block) !== null;
     return (
-      <aside className="checkpoint">
-        ✋ Pausa de lectura — aquí aparecerá una pregunta de comprensión cuando
-        la evaluación esté disponible (próximamente).
+      <aside ref={observeCheckpoint(block)} className="checkpoint">
+        {hasQuestion
+          ? "✋ Fin de la sección — responde la pregunta de comprensión en el chat 👉"
+          : "✋ Pausa de lectura — aquí aparecerá una pregunta de comprensión (próximamente)."}
       </aside>
     );
   }

@@ -23,12 +23,17 @@ type Card =
 export function IllustrateBar({ bookId, blocks, readingState }: Props) {
   const [card, setCard] = useState<Card>(null);
 
-  // Sección de cada chunk: se abre una nueva en cada h2 (capítulo).
+  // Sección de cada chunk: NO son capítulos. Son tramos anotados por el
+  // profesor y cada BANDERA marca el fin de uno (aclarado por el equipo,
+  // 2026-07-11). Una sección = chunks entre banderas.
   const sectionOfChunk = useMemo(() => {
     const map = new Map<string, number>();
     let section = 0;
     for (const b of blocks) {
-      if (b.type === "h2") section += 1;
+      if (b.type === "BANDERA") {
+        section += 1;
+        continue;
+      }
       if (b.chunk_id && !map.has(b.chunk_id)) map.set(b.chunk_id, section);
     }
     return map;
@@ -78,7 +83,7 @@ export function IllustrateBar({ bookId, blocks, readingState }: Props) {
         </button>
         <button
           disabled={busy || currentSectionChunks.length === 0}
-          title="Dibuja el capítulo que estás leyendo ahora"
+          title="Dibuja la sección que estás leyendo (los tramos marcados en la obra)"
           onClick={() =>
             void illustrate("esta sección", {
               book_id: bookId,
