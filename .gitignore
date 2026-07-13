@@ -12,6 +12,9 @@ chroma_db/
 data/obras/*.json
 *.json
 !package.json
+!data/outputs/readers/*.reader.json
+!data/outputs/readers/reader_index.json
+!data/master/index_books.json
 .DS_Store
 Thumbs.db
 .vscode/

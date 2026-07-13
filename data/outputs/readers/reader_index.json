@@ -1,0 +1,92 @@
+{
+  "books": [
+    {
+      "book_id": "cronica_de_una_muerte_anunciada_gabriel_garcia_marquez",
+      "title": "Crónica de una muerte anunciada",
+      "author": "Gabriel García Márquez",
+      "publication_year": 1988,
+      "reader_path": "data/outputs/reader/cronica_de_una_muerte_anunciada_gabriel_garcia_marquez.reader.json",
+      "total_blocks": 326,
+      "total_narrative_blocks": 298,
+      "total_non_narrative_blocks": 28,
+      "total_flags": 20
+    },
+    {
+      "book_id": "el_maravilloso_mago_de_oz_baum_lyman_frank",
+      "title": "El maravilloso mago de Oz",
+      "author": "Baum, Lyman Frank",
+      "publication_year": 2022,
+      "reader_path": "data/outputs/reader/el_maravilloso_mago_de_oz_baum_lyman_frank.reader.json",
+      "total_blocks": 83,
+      "total_narrative_blocks": 72,
+      "total_non_narrative_blocks": 11,
+      "total_flags": 9
+    },
+    {
+      "book_id": "el_viejo_y_el_mar_ernest_hemingway",
+      "title": "El viejo y el mar",
+      "author": "Ernest Hemingway",
+      "publication_year": 1952,
+      "reader_path": "data/outputs/reader/el_viejo_y_el_mar_ernest_hemingway.reader.json",
+      "total_blocks": 700,
+      "total_narrative_blocks": 660,
+      "total_non_narrative_blocks": 40,
+      "total_flags": 26
+    },
+    {
+      "book_id": "la_ciudad_y_los_perros_mario_vargas_llosa",
+      "title": "La ciudad y los perros",
+      "author": "Mario Vargas Llosa",
+      "publication_year": 1962,
+      "reader_path": "data/outputs/reader/la_ciudad_y_los_perros_mario_vargas_llosa.reader.json",
+      "total_blocks": 2885,
+      "total_narrative_blocks": 2795,
+      "total_non_narrative_blocks": 90,
+      "total_flags": 79
+    },
+    {
+      "book_id": "la_metamorfosis_franz_kafka",
+      "title": "La metamorfosis",
+      "author": "Franz Kafka",
+      "publication_year": 2022,
+      "reader_path": "data/outputs/reader/la_metamorfosis_franz_kafka.reader.json",
+      "total_blocks": 211,
+      "total_narrative_blocks": 196,
+      "total_non_narrative_blocks": 15,
+      "total_flags": 13
+    },
+    {
+      "book_id": "las_aventuras_de_tom_sawyer_mark_twain",
+      "title": "Las aventuras de Tom Sawyer",
+      "author": "Mark Twain",
+      "publication_year": 1876,
+      "reader_path": "data/outputs/reader/las_aventuras_de_tom_sawyer_mark_twain.reader.json",
+      "total_blocks": 1909,
+      "total_narrative_blocks": 1839,
+      "total_non_narrative_blocks": 70,
+      "total_flags": 52
+    },
+    {
+      "book_id": "matalache_enrique_lopez_albujar",
+      "title": "Matalaché",
+      "author": "Enrique López Albújar",
+      "publication_year": 1927,
+      "reader_path": "data/outputs/reader/matalache_enrique_lopez_albujar.reader.json",
+      "total_blocks": 4660,
+      "total_narrative_blocks": 4497,
+      "total_non_narrative_blocks": 163,
+      "total_flags": 128
+    },
+    {
+      "book_id": "viaje_al_centro_de_la_tierra_julio_verne",
+      "title": "Viaje al Centro de la Tierra",
+      "author": "Julio Verne",
+      "publication_year": 2022,
+      "reader_path": "data/outputs/reader/viaje_al_centro_de_la_tierra_julio_verne.reader.json",
+      "total_blocks": 2423,
+      "total_narrative_blocks": 2306,
+      "total_non_narrative_blocks": 117,
+      "total_flags": 65
+    }
+  ]
+}
