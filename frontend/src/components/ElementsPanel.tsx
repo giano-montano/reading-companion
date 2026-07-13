@@ -12,12 +12,12 @@ import { chunkIndexOf } from "../api/types";
  * solo describe texto ya alcanzado.
  */
 
+// Solo personajes y lugares: el extractor NER (spaCy) únicamente puebla esas
+// dos categorías; objetos/temas/emociones venían siempre vacías (decisión del
+// equipo, 2026-07-12). El `label` es singular porque va en el tooltip por chip.
 const CATEGORIES = [
-  { key: "personajes", icon: "👤", label: "Personajes" },
-  { key: "lugares", icon: "📍", label: "Lugares" },
-  { key: "objetos_simbolos", icon: "🗝️", label: "Objetos y símbolos" },
-  { key: "temas", icon: "💭", label: "Temas" },
-  { key: "emociones", icon: "🎭", label: "Emociones" },
+  { key: "personajes", icon: "👤", label: "Personaje" },
+  { key: "lugares", icon: "📍", label: "Lugar" },
 ] as const;
 
 type CategoryKey = (typeof CATEGORIES)[number]["key"];
@@ -30,28 +30,53 @@ interface ElementItem {
   inFocus: boolean;
 }
 
+const MIN_FRAGMENT_LEN = 4; // evita fusionar palabras muy cortas
+
 /**
- * Fusiona variantes del mismo elemento entre chunks: mismo texto (case-
- * insensitive) o una variante contenida en otra ("Gregorio" ⊂ "Gregorio
- * Samsa") se quedan con la forma MÁS LARGA y el primer índice de aparición.
- * El mínimo de 4 letras evita fusiones accidentales de palabras cortas.
+ * ¿La forma `a` es una variante contenida en la forma más larga `b`?
+ * ("samsa" ⊂ "gregorio samsa"). Solo cuando `b` es estrictamente más larga.
  */
-function addItem(items: ElementItem[], label: string, index: number, inFocus: boolean) {
-  const low = label.toLowerCase();
-  for (const item of items) {
-    const itemLow = item.label.toLowerCase();
-    const contained =
-      itemLow === low ||
-      (low.length >= 4 && itemLow.includes(low)) ||
-      (itemLow.length >= 4 && low.includes(itemLow));
-    if (contained) {
-      if (label.length > item.label.length) item.label = label;
-      item.firstIndex = Math.min(item.firstIndex, index);
-      item.inFocus = item.inFocus || inFocus;
-      return;
+function isFragmentOf(a: string, b: string): boolean {
+  return a.length >= MIN_FRAGMENT_LEN && b.length > a.length && b.includes(a);
+}
+
+/**
+ * Canonicaliza las variantes de UNA categoría con GUARDIA DE AMBIGÜEDAD.
+ *
+ * Guardia interina (2026-07-12): el backend emite fragmentos ambiguos como
+ * "Samsa" a secas, contenido en 3 personajes distintos ("Gregorio Samsa",
+ * "señor Samsa", "señora Samsa"). La fusión ingenua lo pegaba al primero y lo
+ * atribuía mal (bug reportado por Giano). Regla:
+ *   - fragmento contenido en 0 formas más largas → entidad propia (canónica).
+ *   - contenido en EXACTAMENTE 1 → se fusiona en ella (variante inequívoca).
+ *   - contenido en 2+ → AMBIGUO: se descarta (no se muestra ni se atribuye).
+ * El arreglo de raíz es del backend (canonicalización con contexto); mientras,
+ * esta guardia evita la atribución errónea. Al canonicalizar el backend, esta
+ * lógica se elimina por completo.
+ */
+function canonicalize(forms: Map<string, ElementItem>): ElementItem[] {
+  const lows = [...forms.keys()];
+  const containersOf = (f: string) => lows.filter((g) => isFragmentOf(f, g));
+
+  // Las formas sin contenedor son canónicas (los nombres completos).
+  const canonical = new Map<string, ElementItem>();
+  for (const low of lows) {
+    if (containersOf(low).length === 0) canonical.set(low, { ...forms.get(low)! });
+  }
+
+  // Los fragmentos se fusionan solo si son inequívocos (un único contenedor).
+  for (const low of lows) {
+    const containers = containersOf(low);
+    if (containers.length !== 1) continue; // 0 = ya canónica · 2+ = ambigua, se descarta
+    const target = canonical.get(containers[0]);
+    const frag = forms.get(low)!;
+    if (target) {
+      target.firstIndex = Math.min(target.firstIndex, frag.firstIndex);
+      target.inFocus = target.inFocus || frag.inFocus;
     }
   }
-  items.push({ label, firstIndex: index, inFocus });
+
+  return [...canonical.values()];
 }
 
 function aggregate(
@@ -59,21 +84,28 @@ function aggregate(
   maxIndex: number,
   focusIndexes: Set<number>,
 ): Record<CategoryKey, ElementItem[]> {
-  const result = Object.fromEntries(
-    CATEGORIES.map((c) => [c.key, [] as ElementItem[]]),
-  ) as Record<CategoryKey, ElementItem[]>;
-
   const visible = Object.values(elements)
     .filter((e) => e.chunk_index <= maxIndex)
     .sort((a, b) => a.chunk_index - b.chunk_index);
 
-  for (const entry of visible) {
-    const inFocus = focusIndexes.has(entry.chunk_index);
-    for (const { key } of CATEGORIES) {
-      for (const label of entry[key] ?? []) {
-        addItem(result[key], label, entry.chunk_index, inFocus);
+  const result = {} as Record<CategoryKey, ElementItem[]>;
+  for (const { key } of CATEGORIES) {
+    // Formas distintas de la categoría (case-insensitive), con sus stats.
+    const forms = new Map<string, ElementItem>();
+    for (const entry of visible) {
+      const inFocus = focusIndexes.has(entry.chunk_index);
+      for (const raw of entry[key] ?? []) {
+        const low = raw.toLowerCase();
+        const cur = forms.get(low);
+        if (cur) {
+          cur.firstIndex = Math.min(cur.firstIndex, entry.chunk_index);
+          cur.inFocus = cur.inFocus || inFocus;
+        } else {
+          forms.set(low, { label: raw, firstIndex: entry.chunk_index, inFocus });
+        }
       }
     }
+    result[key] = canonicalize(forms);
   }
   return result;
 }
@@ -85,6 +117,10 @@ interface Props {
 
 export function ElementsPanel({ elements, readingState }: Props) {
   const [open, setOpen] = useState(true);
+  // Tooltip propio (posición fija): el `title` nativo tarda ~1s en salir, lo
+  // que arruina el "pasa el ratón y sabes el tipo". Este aparece al instante y
+  // no lo recorta el overflow del panel.
+  const [tip, setTip] = useState<{ text: string; x: number; y: number } | null>(null);
 
   const focusKey = readingState.focus_chunk_ids.join(",");
   const byCategory = useMemo(() => {
@@ -101,7 +137,12 @@ export function ElementsPanel({ elements, readingState }: Props) {
   // Libro sin anotar: el panel no existe (no un panel vacío permanente).
   if (!byCategory) return null;
 
-  const total = CATEGORIES.reduce((n, c) => n + byCategory[c.key].length, 0);
+  // Nube única: todos los chips juntos (ordenados por primera aparición). El
+  // tipo (Personaje/Lugar) lo dan el ícono y el tooltip, no un encabezado de
+  // sección — ocupa la mitad del alto (pedido de Giano, 2026-07-12).
+  const items = CATEGORIES.flatMap(({ key, icon, label }) =>
+    byCategory[key].map((it) => ({ ...it, icon, category: label })),
+  ).sort((a, b) => a.firstIndex - b.firstIndex);
 
   return (
     <section className="elements-panel" aria-label="Elementos de la historia">
@@ -113,46 +154,46 @@ export function ElementsPanel({ elements, readingState }: Props) {
       >
         <span className="elements-title">📖 Elementos de la historia</span>
         <span className="elements-count">
-          {total > 0 ? total : "—"} {open ? "▾" : "▸"}
+          {items.length > 0 ? items.length : "—"} {open ? "▾" : "▸"}
         </span>
       </button>
 
       {open && (
         <div className="elements-body">
-          {total === 0 ? (
+          {items.length === 0 ? (
             <p className="elements-empty">
-              Los personajes, lugares y temas irán apareciendo aquí a medida
-              que avances en la lectura.
+              Los personajes y lugares irán apareciendo aquí a medida que
+              avances en la lectura.
             </p>
           ) : (
-            CATEGORIES.map(({ key, icon, label }) => {
-              const items = byCategory[key];
-              if (items.length === 0) return null;
-              return (
-                <div key={key} className="elements-category">
-                  <h3>
-                    <span aria-hidden="true">{icon}</span> {label}
-                    <small>{items.length}</small>
-                  </h3>
-                  <ul>
-                    {items.map((item) => (
-                      <li
-                        key={item.label}
-                        className={`element-chip${item.inFocus ? " in-focus" : ""}`}
-                        title={
-                          item.inFocus
-                            ? "Aparece en lo que estás leyendo ahora"
-                            : `Apareció por primera vez cerca del chunk ${item.firstIndex}`
-                        }
-                      >
-                        {item.label}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              );
-            })
+            <ul className="elements-cloud">
+              {items.map((item) => (
+                <li
+                  key={`${item.category}:${item.label}`}
+                  className={`element-chip${item.inFocus ? " in-focus" : ""}`}
+                  onMouseEnter={(e) => {
+                    const r = e.currentTarget.getBoundingClientRect();
+                    setTip({
+                      text: `${item.category}${
+                        item.inFocus ? " · aparece en lo que lees" : ""
+                      }`,
+                      x: r.left + r.width / 2,
+                      y: r.top,
+                    });
+                  }}
+                  onMouseLeave={() => setTip(null)}
+                >
+                  <span aria-hidden="true">{item.icon}</span> {item.label}
+                </li>
+              ))}
+            </ul>
           )}
+        </div>
+      )}
+
+      {tip && (
+        <div className="chip-tip" style={{ left: tip.x, top: tip.y }} role="tooltip">
+          {tip.text}
         </div>
       )}
     </section>

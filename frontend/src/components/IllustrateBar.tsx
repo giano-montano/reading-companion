@@ -4,7 +4,7 @@
  * envía: rige el default del server (en dev, SVG placeholder). Cuando el
  * equipo quiera imagen real se añade un toggle que mande mock:false explícito.
  */
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { createImageJob, pollImageJob } from "../api/client";
 import type { ImageRequest, ReaderBlock, ReadingState } from "../api/types";
 
@@ -22,6 +22,31 @@ type Card =
 
 export function IllustrateBar({ bookId, blocks, readingState }: Props) {
   const [card, setCard] = useState<Card>(null);
+  // Posición arrastrada de la ventana; null = ancla por defecto (abajo-derecha,
+  // vía CSS). Se puede mover para no tapar el chat mientras se lee/responde.
+  const [pos, setPos] = useState<{ x: number; y: number } | null>(null);
+  const dragRef = useRef<{ dx: number; dy: number } | null>(null);
+
+  function onDragStart(e: React.PointerEvent<HTMLElement>) {
+    if ((e.target as HTMLElement).closest("button")) return; // no arrastrar al cerrar
+    const cardEl = e.currentTarget.parentElement as HTMLElement;
+    const rect = cardEl.getBoundingClientRect();
+    dragRef.current = { dx: e.clientX - rect.left, dy: e.clientY - rect.top };
+    setPos({ x: rect.left, y: rect.top }); // fija en su sitio actual sin saltar
+    e.currentTarget.setPointerCapture(e.pointerId);
+  }
+  function onDragMove(e: React.PointerEvent<HTMLElement>) {
+    const d = dragRef.current;
+    if (!d) return;
+    setPos({
+      x: Math.max(4, Math.min(e.clientX - d.dx, window.innerWidth - 80)),
+      y: Math.max(4, Math.min(e.clientY - d.dy, window.innerHeight - 40)),
+    });
+  }
+  function onDragEnd(e: React.PointerEvent<HTMLElement>) {
+    dragRef.current = null;
+    e.currentTarget.releasePointerCapture(e.pointerId);
+  }
 
   // Sección de cada chunk: NO son capítulos. Son tramos anotados por el
   // profesor y cada BANDERA marca el fin de uno (aclarado por el equipo,
@@ -117,9 +142,22 @@ export function IllustrateBar({ bookId, blocks, readingState }: Props) {
       </div>
 
       {card && (
-        <div className="illustration-card">
-          <header>
-            <span>Ilustración: {card.label}</span>
+        <div
+          className="illustration-card"
+          style={
+            pos
+              ? { left: pos.x, top: pos.y, right: "auto", bottom: "auto" }
+              : undefined
+          }
+        >
+          <header
+            className="illustration-drag"
+            onPointerDown={onDragStart}
+            onPointerMove={onDragMove}
+            onPointerUp={onDragEnd}
+            title="Arrastra para mover la ventana"
+          >
+            <span>⠿ Ilustración: {card.label}</span>
             <button onClick={() => setCard(null)} aria-label="Cerrar">✕</button>
           </header>
           {card.status === "pending" && <p className="thinking">Generando…</p>}

@@ -198,22 +198,5 @@ Text rules:
 
     return """
 Strict anti-text rules:
-- no text anywhere
-- no captions
-- no labels
-- no title
-- no headings
-- no written symbols
-- no fake letters
-- no readable text
-- no unreadable pseudo-text
-- no text boxes
-- no white caption areas
-- no speech bubbles
-- no thought bubbles
-- no diary writing
-- no book titles
-- no posters with text
-- no signs
-- only drawings inside the image
+- no text anywhere, no captions, no labels, no title, no headings, no written symbols, no fake letters, no readable text, no unreadable pseudo-text, no text boxes, no white caption areas, no speech bubbles, no thought bubbles, no diary writing, no book titles, no posters with text, no signs, only drawings inside the image
 """.strip()

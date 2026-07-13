@@ -98,7 +98,9 @@ const READER = {
     },
     [`${BOOK_ID}::chunk::2`]: {
       chunk_index: 2,
-      personajes: ["Gregorio", "la familia"],
+      // "Gregorio" ⊂ un solo nombre completo → fusión inequívoca.
+      // "señor Samsa" es un personaje completo distinto.
+      personajes: ["Gregorio", "la familia", "señor Samsa"],
       lugares: ["el pasillo"],
       objetos_simbolos: [],
       temas: ["alienación"],
@@ -106,7 +108,8 @@ const READER = {
     },
     [`${BOOK_ID}::chunk::5`]: {
       chunk_index: 5,
-      personajes: ["Gregorio Samsa"],
+      // "Samsa" a secas es AMBIGUO (cabe en 3 personajes) → la guardia lo descarta.
+      personajes: ["Gregorio Samsa", "Samsa", "señora Samsa"],
       lugares: ["la casa"],
       objetos_simbolos: ["la puerta cerrada"],
       temas: ["deuda familiar"],

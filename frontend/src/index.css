@@ -152,12 +152,12 @@ main {
 }
 
 .main-reader {
-  max-width: 1400px;
+  max-width: 1600px;
 }
 
 .reader-layout {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(400px, 460px);
+  grid-template-columns: minmax(0, 1fr) minmax(440px, 620px);
   gap: 2rem;
   align-items: start;
 }
@@ -246,27 +246,13 @@ main {
   font-size: 0.85rem;
 }
 
-.elements-category h3 {
-  margin: 0.75rem 0 0.35rem;
-  font-size: 0.8rem;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: #5c6470;
-}
-
-.elements-category h3 small {
-  margin-left: 0.4rem;
-  font-weight: 400;
-  color: #b0aa9e;
-}
-
-.elements-category ul {
+.elements-cloud {
   list-style: none;
-  margin: 0;
+  margin: 0.75rem 0 0;
   padding: 0;
   display: flex;
   flex-wrap: wrap;
-  gap: 0.3rem;
+  gap: 0.35rem;
 }
 
 .element-chip {
@@ -279,10 +265,29 @@ main {
   transition: background 0.3s ease, border-color 0.3s ease;
 }
 
+.element-chip {
+  cursor: help; /* señala que hay info al pasar el ratón */
+}
+
 .element-chip.in-focus {
   background: #fdf3c4;
   border-color: #e4cf7e;
   font-weight: 600;
+}
+
+/* Tooltip propio del chip: instantáneo (sin el retraso del title nativo) y
+   con position:fixed para no ser recortado por el scroll del panel. */
+.chip-tip {
+  position: fixed;
+  transform: translate(-50%, calc(-100% - 6px));
+  padding: 0.2rem 0.5rem;
+  background: #1f2430;
+  color: #fff;
+  font-size: 0.72rem;
+  border-radius: 6px;
+  white-space: nowrap;
+  pointer-events: none;
+  z-index: 20;
 }
 
 /* --- Chat --- */
@@ -313,11 +318,22 @@ main {
 }
 
 .msg {
-  max-width: 90%;
+  max-width: 100%;
   padding: 0.55rem 0.8rem;
   border-radius: 12px;
   font-size: 0.95rem;
   white-space: pre-wrap;
+  overflow-wrap: anywhere; /* palabras largas no fuerzan scroll horizontal */
+}
+
+/* La respuesta del asistente aprovecha todo el ancho de la columna; el mensaje
+   del alumno se mantiene más acotado para conservar la asimetría del chat. */
+.msg.assistant {
+  width: 100%;
+}
+
+.msg.user {
+  max-width: 85%;
 }
 
 .msg.user {
@@ -467,6 +483,16 @@ main {
   padding: 0.6rem 0.9rem;
   border-bottom: 1px solid #eee7db;
   font-size: 0.9rem;
+}
+
+.illustration-drag {
+  cursor: grab;
+  touch-action: none; /* el arrastre no dispara scroll del navegador */
+  user-select: none;
+}
+
+.illustration-drag:active {
+  cursor: grabbing;
 }
 
 .illustration-card header button {
