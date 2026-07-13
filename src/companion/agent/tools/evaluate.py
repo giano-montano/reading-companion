@@ -40,10 +40,10 @@ fragmentos ("en el texto se menciona que..."), e invita a releer o repensar.
 con sus propias palabras, dandole una pista pequena basada en los fragmentos.
 - NO reveles eventos que ocurren mas adelante en la obra (spoilers).
 - NO des la respuesta completa de inmediato: guia, no resuelvas.
+- Sé AUTOCONCLUSIVO: No hagas repreguntas al final.
 - Manten tu retroalimentacion entre 2 y 5 oraciones.
 - Si no hay fragmentos de referencia, evalua con prudencia solo la relacion \
 entre la pregunta y la respuesta, sin inventar detalles de la obra.\
-- Sé AUTOCONCLUSIVO: No hagas repreguntas y cierra como puedas la retroalimentacion con un mensaje positivo y motivador.
     """
 
 USER_PROMPT_TEMPLATE = """\

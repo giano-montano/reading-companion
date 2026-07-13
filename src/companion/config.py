@@ -40,6 +40,9 @@ class Settings(BaseSettings):
 
     router_model:  str = Field("meta/llama-3.1-8b-instruct")
     content_model: str = Field("meta/llama-3.3-70b-instruct")
+    # Destila el extracto en escenas visuales antes de llamar al generador de
+    # imágenes (ver visual_support/scene_planner.py). Modelo ligero a propósito.
+    visual_planner_model: str = Field("meta/llama-3.1-8b-instruct")
 
     # LLM response cache (applies to real providers; mock is never cached)
     llm_cache_enabled: bool = Field(True)

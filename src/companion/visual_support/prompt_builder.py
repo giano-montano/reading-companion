@@ -1,6 +1,37 @@
 from __future__ import annotations
 
+import re
+
 from companion.visual_support.schemas import VisualSupportRequest
+
+# El extracto crudo YA NO se vuelca entero en el prompt: un modelo de difusión no
+# hace comprensión lectora, y una pared de prosa lo llevaba a alucinar y a
+# renderizar texto dentro de la imagen.  Las escenas las destila antes el 8B
+# (visual_support/scene_planner.py); aquí solo queda un extracto breve como
+# anclaje de tono.
+_BRIEF_EXCERPT_CHARS = 400
+
+
+def _brief_excerpt(text: str, max_chars: int = _BRIEF_EXCERPT_CHARS) -> str:
+    """Primeras frases del extracto, cortando en límite de frase."""
+    clean = re.sub(r"\s+", " ", text).strip()
+    if len(clean) <= max_chars:
+        return clean
+
+    window = clean[:max_chars]
+    cut = max(window.rfind(". "), window.rfind("? "), window.rfind("! "))
+    if cut > max_chars // 2:
+        return window[: cut + 1]
+    return window.rsplit(" ", 1)[0] + "…"
+
+
+def build_grounding_block(text: str) -> str:
+    return f"""
+Source excerpt (for tone and setting only — do NOT draw or render any of these words):
+\"\"\"
+{_brief_excerpt(text)}
+\"\"\"
+""".strip()
 
 
 def infer_frame_count(scope: str, text: str) -> int:
@@ -102,10 +133,7 @@ Visual style:
 Visual moment:
 {event_block}
 
-Source text for grounding:
-\"\"\"
-{request.text}
-\"\"\"
+{build_grounding_block(request.text)}
 
 {anti_text_rules}
 
@@ -174,10 +202,7 @@ Visual style:
 Three framed visual scenes:
 {event_block}
 
-Source text for grounding:
-\"\"\"
-{request.text}
-\"\"\"
+{build_grounding_block(request.text)}
 
 {anti_text_rules}
 

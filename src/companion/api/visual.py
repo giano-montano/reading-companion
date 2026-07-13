@@ -12,14 +12,19 @@ router = APIRouter(prefix="/api/visual-support", tags=["visual-support"])
 
 @router.post("/preview")
 def preview_visual_support_prompt(payload: VisualSupportRequest) -> dict[str, object]:
-    prompt, frame_count = build_visual_prompt(payload)
+    # `prepare` corre el planner 8B igual que /generate, para que el preview
+    # muestre EL MISMO prompt que se enviaría al generador (escenas incluidas).
+    prepared = VisualSupportService().prepare(payload)
+    prompt, frame_count = build_visual_prompt(prepared)
     return {
         "status": "ok",
-        "scope": payload.scope,
+        "scope": prepared.scope,
         "frame_count": frame_count,
-        "model": payload.model or settings.cloudflare_image_model,
-        "width": payload.width,
-        "height": payload.height,
+        "model": prepared.model or settings.cloudflare_image_model,
+        "width": prepared.width,
+        "height": prepared.height,
+        "visual_events": prepared.visual_events,
+        "characters": [c.model_dump() for c in prepared.characters],
         "prompt": prompt,
     }
 

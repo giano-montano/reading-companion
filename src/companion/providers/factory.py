@@ -50,6 +50,12 @@ def get_content_llm() -> LLMProvider:
     return _build_role_llm("content", settings.content_model, temperature=0.2)
 
 
+def get_visual_planner_llm() -> LLMProvider:
+    """Modelo ligero (8B) que destila el extracto en escenas visuales antes de
+    llamar al generador de imágenes. Rol propio → cache aparte (contrato #3)."""
+    return _build_role_llm("visual", settings.visual_planner_model, temperature=0.3)
+
+
 def get_llm_provider(cached: bool | None = None) -> LLMProvider:
     """
     Build the configured LLM provider.

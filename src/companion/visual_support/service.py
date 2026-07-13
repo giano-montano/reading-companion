@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import html
+import logging
 import math
 import random
 import time
@@ -9,8 +10,11 @@ from pathlib import Path
 
 from companion.config import settings
 from companion.images.cloudflare_flux import CloudflareFluxProvider
-from companion.visual_support.prompt_builder import build_visual_prompt
+from companion.visual_support.prompt_builder import build_visual_prompt, infer_frame_count
+from companion.visual_support.scene_planner import ScenePlanner
 from companion.visual_support.schemas import VisualSupportRequest, VisualSupportResponse
+
+logger = logging.getLogger(__name__)
 
 # Flux runs a safety classifier on the OUTPUT.  For a fixed prompt+seed it
 # deterministically produces the same (flagged) image, so a plain retry is
@@ -69,12 +73,52 @@ def estimate_cost_usd(model: str, width: int, height: int) -> float | None:
 
 
 class VisualSupportService:
-    def __init__(self, output_dir: str | None = None) -> None:
+    def __init__(
+        self,
+        output_dir: str | None = None,
+        planner: ScenePlanner | None = None,
+    ) -> None:
         configured_output_dir = getattr(settings, "visual_output_dir", "./generated_visuals")
         self.output_dir = Path(output_dir or configured_output_dir)
         self.output_dir.mkdir(parents=True, exist_ok=True)
+        self._planner = planner
+
+    def _get_planner(self) -> ScenePlanner:
+        if self._planner is None:
+            from companion.providers.factory import get_visual_planner_llm
+
+            self._planner = ScenePlanner(get_visual_planner_llm())
+        return self._planner
+
+    def prepare(self, request: VisualSupportRequest) -> VisualSupportRequest:
+        """Destila el extracto en escenas (8B) ANTES de armar el prompt de imagen.
+
+        Sin esto, el generador recibía la prosa cruda y se le pedía elegir los
+        momentos importantes: alucinaba y renderizaba texto.  Si el caller ya
+        mandó `visual_events`, se respetan tal cual.  Si el planner falla, se
+        sigue sin plan: la imagen se genera igual, nunca se rompe la petición."""
+        if request.visual_events:
+            return request
+
+        frame_count = infer_frame_count(request.scope, request.text)
+        try:
+            plan = self._get_planner().plan(
+                text=request.text,
+                scope=request.scope,
+                frame_count=frame_count,
+                title=request.title,
+            )
+        except Exception as exc:  # noqa: BLE001 — degradar, no romper
+            logger.warning("scene_planner falló, genero sin plan de escenas: %s", exc)
+            return request
+
+        update: dict[str, object] = {"visual_events": plan.visual_events}
+        if plan.characters and not request.characters:
+            update["characters"] = plan.characters
+        return request.model_copy(update=update)
 
     def generate(self, request: VisualSupportRequest) -> VisualSupportResponse:
+        request = self.prepare(request)
         model = request.model or settings.cloudflare_image_model
         prompt, frame_count = build_visual_prompt(request)
 
