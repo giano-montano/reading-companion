@@ -18,6 +18,12 @@ import type {
   ReaderResponse,
 } from "./types";
 
+// ngrok muestra un warning HTML en el navegador si no ve este header.
+// Para este MVP lo centralizamos acá para no repetirlo en cada pantalla.
+const NGROK_BROWSER_WARNING_HEADER = {
+  "ngrok-skip-browser-warning": "true",
+};
+
 class ApiError extends Error {
   constructor(
     public readonly status: number,
@@ -30,7 +36,11 @@ class ApiError extends Error {
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${API_BASE_URL}${path}`, {
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      ...NGROK_BROWSER_WARNING_HEADER,
+      ...(init?.headers ?? {}),
+    },
     ...init,
   });
   if (!res.ok) {
@@ -60,7 +70,9 @@ export const resolvePollUrl = (pollUrl: string): string =>
   pollUrl.startsWith("/") ? `${API_BASE_URL}${pollUrl}` : pollUrl;
 
 export async function getImageJob(pollUrl: string): Promise<ImageJobStatus> {
-  const res = await fetch(resolvePollUrl(pollUrl));
+  const res = await fetch(resolvePollUrl(pollUrl), {
+    headers: NGROK_BROWSER_WARNING_HEADER,
+  });
   if (!res.ok) throw new ApiError(res.status, res.statusText);
   return res.json() as Promise<ImageJobStatus>;
 }
@@ -101,7 +113,10 @@ export async function streamChat(
 ): Promise<void> {
   const res = await fetch(`${API_BASE_URL}/api/chat`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      ...NGROK_BROWSER_WARNING_HEADER,
+    },
     body: JSON.stringify(body),
     signal,
   });
