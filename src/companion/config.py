@@ -58,6 +58,11 @@ class Settings(BaseSettings):
     # Retrieval
     top_k: int = Field(5)
 
+    # API / CORS — coma-separada; "*" en dev. En prod ponla al dominio del
+    # frontend (p. ej. "https://tu-app.vercel.app") para no dejar el endpoint
+    # abierto a cualquier origen una vez expuesto por el túnel.
+    cors_allow_origins: str = Field("*")
+
     # # Chunking
     # chunk_size: int = Field(500)
     # chunk_overlap: int = Field(50)
