@@ -186,6 +186,27 @@ export function chunkIndexOf(chunkId: string | null): number | null {
 export const CHECKPOINT_MARKER = "--$CHECKPOINT_LECTURA$--";
 
 /**
+ * Color pastel para visualizar chunks.
+ * Usa el índice numérico del chunk (1, 2, 3...) para un ciclo de 6 colores.
+ */
+export function chunkColorHex(chunkId: string | null): string | null {
+  if (!chunkId) return null;
+  const n = chunkIndexOf(chunkId);
+  if (n === null) return null;
+  const palette = [
+    "hsl(45, 50%, 92%)",   // amarillo
+    "hsl(180, 40%, 92%)",  // cian
+    "hsl(280, 40%, 93%)",  // lavanda
+    "hsl(120, 35%, 92%)",  // verde
+    "hsl(10, 50%, 93%)",   // salmón
+    "hsl(210, 45%, 92%)",  // azul
+    "hsl(330, 40%, 93%)",  // rosa
+    "hsl(60, 40%, 91%)",   // dorado
+  ];
+  return palette[(n - 1) % palette.length];
+}
+
+/**
  * Pregunta de comprensión de un checkpoint. La pregunta viaja en el campo
  * `questions` (lista) del bloque BANDERA. Si el campo no existe, se cae
  * al `text` como fallback (marcador crudo = sin pregunta).

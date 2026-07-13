@@ -1,7 +1,7 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { getReader } from "../api/client";
 import type { Citation, ReaderBlock, ReaderResponse } from "../api/types";
-import { checkpointQuestion, chunkIndexOf } from "../api/types";
+import { checkpointQuestion, chunkColorHex, chunkIndexOf } from "../api/types";
 import { TOP_OFFSET, useReadingTracker } from "../hooks/useReadingTracker";
 import { ChatPanel } from "./ChatPanel";
 import { ElementsPanel } from "./ElementsPanel";
@@ -42,6 +42,7 @@ export function ReaderView({ bookId, onBack }: Props) {
   const [state, setState] = useState<ReaderState>({ status: "loading" });
   const [citations, setCitations] = useState<Citation[]>([]);
   const [checkpoint, setCheckpoint] = useState<CheckpointPrompt | null>(null);
+  const [showChunks, setShowChunks] = useState(false);
   // Checkpoints resueltos (respondidos en el chat o saltados por el alumno).
   const [cleared, setCleared] = useState<ReadonlySet<string>>(new Set());
   const [skippedId, setSkippedId] = useState<string | null>(null);
@@ -176,6 +177,13 @@ export function ReaderView({ bookId, onBack }: Props) {
         <div>
           <strong>{metadata.title}</strong> · {metadata.author}
         </div>
+        <button
+          className={`chunk-toggle ${showChunks ? "on" : ""}`}
+          onClick={() => setShowChunks((v) => !v)}
+          title={showChunks ? "Ocultar chunks" : "Mostrar chunks"}
+        >
+          🧩 Chunks
+        </button>
         <IllustrateBar bookId={bookId} blocks={blocks} readingState={readingState} />
       </header>
 
@@ -188,6 +196,7 @@ export function ReaderView({ bookId, onBack }: Props) {
           activeGateId={activeGateId}
           gateFired={gateFired}
           onSkip={handleSkip}
+          showChunks={showChunks}
         />
         <div className="reader-side">
           <ElementsPanel
@@ -228,6 +237,7 @@ const BlockList = memo(function BlockList({
   activeGateId,
   gateFired,
   onSkip,
+  showChunks,
 }: {
   blocks: ReaderBlock[];
   observeBlock: (block: ReaderBlock) => (el: HTMLElement | null) => void;
@@ -236,6 +246,7 @@ const BlockList = memo(function BlockList({
   activeGateId: string | null;
   gateFired: boolean;
   onSkip: (id: string) => void;
+  showChunks: boolean;
 }) {
   return (
     <article className="reader-text">
@@ -249,6 +260,7 @@ const BlockList = memo(function BlockList({
           isActiveGate={block.id_block === activeGateId}
           gateFired={gateFired}
           onSkip={onSkip}
+          showChunks={showChunks}
         />
       ))}
       {/* Espaciador bajo el gate: permite que la bandera llegue casi arriba
@@ -266,6 +278,7 @@ function Block({
   isActiveGate,
   gateFired,
   onSkip,
+  showChunks,
 }: {
   block: ReaderBlock;
   observeBlock: (block: ReaderBlock) => (el: HTMLElement | null) => void;
@@ -274,6 +287,7 @@ function Block({
   isActiveGate: boolean;
   gateFired: boolean;
   onSkip: (id: string) => void;
+  showChunks: boolean;
 }) {
   if (block.type === "BANDERA") {
     const hasQuestion = checkpointQuestion(block) !== null;
@@ -310,17 +324,21 @@ function Block({
   }
 
   const ref = observeBlock(block);
-  const cls = `block${block.is_narrative ? "" : " paratext"}${cited ? " cited" : ""}`;
   const chunk = block.chunk_id ?? undefined;
+
+  // Chunk coloring: light pastel background per chunk (only when toggled on)
+  const chunkColor = showChunks ? chunkColorHex(block.chunk_id) : null;
+  const style = chunkColor ? { backgroundColor: chunkColor } : undefined;
+  const cls = `block${block.is_narrative ? "" : " paratext"}${cited ? " cited" : ""}`;
 
   switch (block.type) {
     case "h1":
-      return <h1 id={block.id_block} data-chunk={chunk} ref={ref} className={cls}>{block.text}</h1>;
+      return <h1 id={block.id_block} data-chunk={chunk} ref={ref} className={cls} style={style}>{block.text}</h1>;
     case "h2":
-      return <h2 id={block.id_block} data-chunk={chunk} ref={ref} className={cls}>{block.text}</h2>;
+      return <h2 id={block.id_block} data-chunk={chunk} ref={ref} className={cls} style={style}>{block.text}</h2>;
     case "h3":
-      return <h3 id={block.id_block} data-chunk={chunk} ref={ref} className={cls}>{block.text}</h3>;
+      return <h3 id={block.id_block} data-chunk={chunk} ref={ref} className={cls} style={style}>{block.text}</h3>;
     default:
-      return <p id={block.id_block} data-chunk={chunk} ref={ref} className={cls}>{block.text}</p>;
+      return <p id={block.id_block} data-chunk={chunk} ref={ref} className={cls} style={style}>{block.text}</p>;
   }
 }

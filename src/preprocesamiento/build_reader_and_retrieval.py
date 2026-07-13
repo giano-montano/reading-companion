@@ -2,11 +2,11 @@
 build_reader_and_retrieval.py — Derive reader + retrieval files from master.json.
 
 Reads data/master/*.master.json and produces:
-  data/outputs/reader/<name>.reader.json       — blocks for app rendering
+  data/outputs/readers/<name>.reader.json       — blocks for app rendering
   data/outputs/retrieval/<name>.retrieval.jsonl — chunks for vectorization
 
 Also generates global indexes:
-  data/outputs/reader/reader_index.json
+  data/outputs/readers/reader_index.json
   data/outputs/retrieval/retrieval_all.jsonl
   data/outputs/retrieval/retrieval_summary.json
 """
@@ -19,7 +19,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent.parent
 MASTER_DIR = ROOT / "data" / "master"
-READER_DIR = ROOT / "data" / "outputs" / "reader"
+READER_DIR = ROOT / "data" / "outputs" / "readers"
 RETRIEVAL_DIR = ROOT / "data" / "outputs" / "retrieval"
 
 
@@ -142,7 +142,7 @@ def main():
                 "title": metadata.get("title"),
                 "author": metadata.get("author"),
                 "publication_year": metadata.get("publication_year"),
-                "reader_path": f"data/outputs/reader/{book_id}.reader.json",
+                "reader_path": f"data/outputs/readers/{book_id}.reader.json",
                 "total_blocks": len(blocks),
                 "total_narrative_blocks": narr,
                 "total_non_narrative_blocks": len(blocks) - narr,

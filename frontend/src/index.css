@@ -90,6 +90,14 @@ main {
   cursor: pointer;
 }
 
+.chunk-toggle {
+  font-size: 0.82rem;
+}
+.chunk-toggle.on {
+  background: #e8f0fe;
+  border-color: #8ab4f8;
+}
+
 .reader-text {
   padding-bottom: 5rem;
   font-size: 1.08rem;
@@ -395,9 +403,10 @@ main {
 
 .reader-text .cited {
   background: #fdf3c4;
-  box-shadow: 0 0 0 6px #fdf3c4;
+  border-left: 4px solid #e6b422;
+  padding-left: 6px;
   border-radius: 2px;
-  transition: background 0.4s ease, box-shadow 0.4s ease;
+  transition: background 0.4s ease;
 }
 
 .chat-input {
@@ -530,4 +539,25 @@ main {
   color: #d6dbe6;
   font-size: 0.85rem;
   font-variant-numeric: tabular-nums;
+}
+
+/* Chunk visualization */
+.reader-text .block,
+.reader-text .paratext,
+.reader-text h1,
+.reader-text h2,
+.reader-text h3 {
+  transition: background-color 0.2s;
+  border-radius: 3px;
+  padding: 2px 4px;
+  margin: 0 -4px;
+}
+
+/* Chunk border indicator */
+.reader-text .block,
+.reader-text .paratext,
+.reader-text h1,
+.reader-text h2,
+.reader-text h3 {
+  padding-left: 8px;
 }
