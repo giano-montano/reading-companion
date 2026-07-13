@@ -46,7 +46,7 @@ class Settings(BaseSettings):
     llm_cache_dir: str = Field("./.llm_cache")
 
     # Embeddings
-    embedding_model: str = Field("paraphrase-multilingual-MiniLM-L12-v2")
+    embedding_model: str = Field("intfloat/multilingual-e5-base")
 
     # NER — Spanish model by default; falls back to smaller variants automatically
     ner_model: str = Field("es_core_news_sm")
@@ -57,6 +57,11 @@ class Settings(BaseSettings):
 
     # Retrieval
     top_k: int = Field(5)
+
+    # API / CORS — coma-separada; "*" en dev. En prod ponla al dominio del
+    # frontend (p. ej. "https://tu-app.vercel.app") para no dejar el endpoint
+    # abierto a cualquier origen una vez expuesto por el túnel.
+    cors_allow_origins: str = Field("*")
 
     # # Chunking
     # chunk_size: int = Field(500)

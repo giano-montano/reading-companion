@@ -3,28 +3,51 @@ from companion.providers.llm_base import LLMProvider
 from companion.config import settings
 
 
+def _build_role_llm(role: str, model: str, temperature: float) -> LLMProvider:
+    """
+    Build a role-specific LLM (router | content) honoring settings.llm_provider.
+
+    Contract #3: router and content NEVER share a cache instance — the cache tag
+    embeds the role, so their responses can never collide even on the same model.
+    Mock is returned uncached (already deterministic and free).
+    """
+    if settings.llm_provider == "nvidia":
+        from companion.providers.nvidia_llm import NvidiaLLMProvider
+        provider: LLMProvider = NvidiaLLMProvider(model=model, temperature=temperature)
+        tag = f"nvidia:{role}:{model}"
+
+    elif settings.llm_provider == "gemini":
+        from companion.providers.gemini_llm import GeminiProvider
+        provider = GeminiProvider(model=settings.gemini_model)
+        tag = f"gemini:{role}:{settings.gemini_model}"
+
+    elif settings.llm_provider == "anthropic":
+        from companion.providers.anthropic_llm import AnthropicLLMProvider
+        provider = AnthropicLLMProvider(model=settings.llm_model)
+        tag = f"anthropic:{role}:{settings.llm_model}"
+
+    else:
+        from companion.providers.mock_llm import MockLLMProvider
+        return MockLLMProvider()  # mock: skip cache, already deterministic
+
+    if settings.llm_cache_enabled:
+        from companion.providers.llm_cache import CachingLLMProvider
+        return CachingLLMProvider(
+            provider,
+            cache_dir=settings.llm_cache_dir,
+            provider_tag=tag,
+        )
+    return provider
+
+
 def get_router_llm() -> LLMProvider:
     """Modelo ligero para clasificar intención (8B). Temperatura 0."""
-    # usa settings.router_model, temperature=0.0
-    
-    from companion.providers.llm_cache import CachingLLMProvider
-    return CachingLLMProvider(
-        provider,
-        cache_dir=settings.llm_cache_dir,
-        provider_tag=f"nvidia:router:{settings.router_model}",
-    )
-    return provider
-    ...  # usa settings.router_model, temperature=0.0
+    return _build_role_llm("router", settings.router_model, temperature=0.0)
+
 
 def get_content_llm() -> LLMProvider:
-    """Modelo pesado para generar contenido (70B)."""
-    # usa settings.content_model, temperature=0.2
-     from companion.providers.llm_cache import CachingLLMProvider
-    return CachingLLMProvider(
-        provider,
-        cache_dir=settings.llm_cache_dir,
-        provider_tag=f"nvidia:content:{settings.content_model}",
-    )
+    """Modelo pesado para generar contenido (70B). Temperatura 0.2."""
+    return _build_role_llm("content", settings.content_model, temperature=0.2)
 
 
 def get_llm_provider(cached: bool | None = None) -> LLMProvider:

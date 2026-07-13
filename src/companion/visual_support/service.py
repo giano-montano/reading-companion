@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import html
 import math
+import random
 import time
 from pathlib import Path
 
@@ -10,6 +11,17 @@ from companion.config import settings
 from companion.images.cloudflare_flux import CloudflareFluxProvider
 from companion.visual_support.prompt_builder import build_visual_prompt
 from companion.visual_support.schemas import VisualSupportRequest, VisualSupportResponse
+
+# Flux runs a safety classifier on the OUTPUT.  For a fixed prompt+seed it
+# deterministically produces the same (flagged) image, so a plain retry is
+# pointless — we must vary the seed to get a different image.
+_FLAG_MARKERS = ("3030", "flagged", "flag")
+_MAX_REAL_ATTEMPTS = 3
+
+
+def _is_content_flag(message: str) -> bool:
+    low = message.lower()
+    return "cloudflare 400" in low and any(m in low for m in _FLAG_MARKERS)
 
 
 def safe_model_name(model: str) -> str:
@@ -66,8 +78,9 @@ class VisualSupportService:
         model = request.model or settings.cloudflare_image_model
         prompt, frame_count = build_visual_prompt(request)
 
-        mock_enabled = bool(getattr(settings, "visual_mock_enabled", False))
-        use_mock = request.mock or mock_enabled
+        # Per-request value wins; None falls back to the global default flag.
+        default_mock = bool(getattr(settings, "visual_mock_enabled", False))
+        use_mock = request.mock if request.mock is not None else default_mock
 
         cache_key = self._build_cache_key(
             prompt=prompt,
@@ -119,8 +132,9 @@ class VisualSupportService:
         start = time.time()
         provider = CloudflareFluxProvider(model=model)
 
-        result = provider.generate(
-            prompt,
+        result = self._generate_with_flag_retry(
+            provider=provider,
+            prompt=prompt,
             width=request.width,
             height=request.height,
             seed=request.seed,
@@ -147,6 +161,41 @@ class VisualSupportService:
             mock=False,
             prompt_used=prompt,
         )
+
+    def _generate_with_flag_retry(
+        self,
+        *,
+        provider: CloudflareFluxProvider,
+        prompt: str,
+        width: int,
+        height: int,
+        seed: int | None,
+    ):
+        """Call the provider, retrying with a fresh seed when Flux flags the
+        output.  Same prompt+seed → same flagged image, so each retry uses a new
+        random seed to get a different image.  Non-flag errors propagate at once."""
+        current_seed = seed
+        last_exc: Exception | None = None
+
+        for attempt in range(_MAX_REAL_ATTEMPTS):
+            try:
+                return provider.generate(
+                    prompt, width=width, height=height, seed=current_seed
+                )
+            except RuntimeError as exc:
+                last_exc = exc
+                if not _is_content_flag(str(exc)) or attempt == _MAX_REAL_ATTEMPTS - 1:
+                    break
+                current_seed = random.randint(1, 2_000_000_000)  # vary the image
+
+        assert last_exc is not None
+        if _is_content_flag(str(last_exc)):
+            raise RuntimeError(
+                "Cloudflare marcó la imagen como no apta tras "
+                f"{_MAX_REAL_ATTEMPTS} intentos (content flag). Prueba con otro "
+                "fragmento o ajusta el prompt."
+            ) from last_exc
+        raise last_exc
 
     def _build_cache_key(
         self,
