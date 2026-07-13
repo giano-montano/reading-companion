@@ -199,6 +199,17 @@ check(
   `antes=(${before.x},${before.y}) después=(${after.x},${after.y})`,
 );
 
+// 11. Anti-spoiler: preguntar por el final estando al inicio → mensaje amable,
+//     nunca el texto técnico "suficiente contexto".
+await page.fill(".chat-input textarea", "¿Quién muere al final de la obra?");
+await page.press(".chat-input textarea", "Enter");
+await page.waitForSelector('.chat-messages :text("spoiler")', { timeout: 30_000 });
+const chatAfter = await page.textContent(".chat-messages");
+check(
+  chatAfter.includes("spoiler") && !chatAfter.includes("suficiente contexto"),
+  "el 'no context' del anti-spoiler se muestra como mensaje amable, sin el texto técnico",
+);
+
 await browser.close();
 console.log(failures === 0 ? "\nTodo en verde." : `\n${failures} verificaciones fallaron.`);
 process.exit(failures === 0 ? 0 : 1);

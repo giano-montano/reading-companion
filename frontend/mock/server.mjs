@@ -137,7 +137,9 @@ const json = (res, status, body, type = "application/json") => {
 
 createServer(async (req, res) => {
   res.setHeader("Access-Control-Allow-Origin", "*");
-  res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+  // "*" como el backend real (allow_headers=["*"]): el cliente manda headers
+  // extra (p. ej. ngrok-skip-browser-warning) que dispararían preflight.
+  res.setHeader("Access-Control-Allow-Headers", "*");
   res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
   if (req.method === "OPTIONS") return json(res, 204, "");
 
@@ -209,6 +211,21 @@ createServer(async (req, res) => {
 
     res.write(sse("route", { tool: "qa_rag" }));
     await new Promise((r) => setTimeout(r, 1200)); // simula "pensando"
+
+    // Simula el anti-spoiler: preguntar por el final/muerte estando al inicio →
+    // el backend filtra todos los chunks y devuelve el "no context" técnico
+    // (rama `if not filtered` de orchestrator.py). El front lo vuelve amable.
+    if (/final|muere|termina|despu[eé]s|spoiler/i.test(message)) {
+      const noCtx = "No tengo suficiente contexto en esta parte de la obra para responder eso.";
+      for (const m of noCtx.match(/\S+\s*/g)) {
+        res.write(sse("token", { delta: m }));
+        await new Promise((r) => setTimeout(r, 15));
+      }
+      res.write(sse("citations", { citations: [], answered: false, ok: true }));
+      res.write(sse("done", {}));
+      return res.end();
+    }
+
     const answer =
       "Gregorio Samsa despertó una mañana convertido en un insecto monstruoso, " +
       "y su primera preocupación fue haber perdido el tren al trabajo. (respuesta mock)";

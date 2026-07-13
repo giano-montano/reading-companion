@@ -13,6 +13,23 @@ import { emptyAgentState } from "../api/types";
 
 const MAX_HISTORY = 10; // 5 pares user/assistant, igual que el backend
 
+/**
+ * Interino (2026-07-13): cuando el QA-RAG no responde porque el anti-spoiler
+ * filtró TODOS los chunks (el alumno pregunta por algo que aún no ha leído),
+ * el backend manda este texto técnico (orchestrator.py, rama `if not filtered`).
+ * Lo detectamos por una parte distintiva del mensaje —"suficiente contexto"—
+ * que NO aparece en el otro "sin resultados" ("no encontré fragmentos
+ * relevantes"), y lo reemplazamos por algo amable y con intención pedagógica.
+ *
+ * Acoplamiento FRÁGIL a propósito: si el backend cambia el texto, degradamos
+ * a mostrar el mensaje original (no rompe). El fix robusto es que el backend
+ * mande una señal explícita (p. ej. `reason: "anti_spoiler"` en `citations`);
+ * pedido en el handoff. El mensaje amable tiene valor permanente (siempre
+ * habrá preguntas legítimamente bloqueadas por anti-spoiler).
+ */
+const ANTI_SPOILER_HINT = "suficiente contexto";
+const SPOILER_FRIENDLY = "Sigue leyendo y lo descubrirás… ¡no quiero hacerte spoiler! 📖";
+
 interface ChatItem {
   id: number;
   kind: "user" | "assistant" | "system" | "image";
@@ -139,6 +156,13 @@ export function ChatPanel({
               if (assistantId !== null && ev.data.citations.length > 0) {
                 patch(assistantId, { citations: ev.data.citations });
                 onCitations(ev.data.citations, false); // resalta sin mover el scroll
+              } else if (
+                assistantId !== null &&
+                !ev.data.answered &&
+                assistantText.includes(ANTI_SPOILER_HINT)
+              ) {
+                // El anti-spoiler filtró todo → mensaje amable en vez del técnico.
+                patch(assistantId, { text: SPOILER_FRIENDLY });
               }
               break;
             case "clarify":
