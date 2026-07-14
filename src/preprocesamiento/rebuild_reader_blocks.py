@@ -1,8 +1,8 @@
-"""Rebuild reader from master.json: split narrative blocks at exact chunk boundaries.
+"""Rebuild reader from master.json: split narrative blocks at chunk boundaries.
 
-Uses the last characters of each chunk's text to find the exact split position
-in the block text. Preserves all original block types and non-narrative blocks.
-BANDERAs are kept unchanged.
+Finds each retrieval chunk's position in the narrative-only canonical text
+via str.find — exact match confirmed. All narrative block positions use
+the narrative-only coordinate system for consistency.
 """
 
 from __future__ import annotations
@@ -15,22 +15,6 @@ MASTER_DIR = ROOT / "data" / "master"
 READER_DIR = ROOT / "data" / "outputs" / "readers"
 RETRIEVAL_DIR = ROOT / "data" / "outputs" / "retrieval"
 
-MATCH_CHARS = 60  # how many trailing chars of chunk text to match for split point
-
-
-def _find_split(text: str, needle: str) -> int:
-    """Find the end position of `needle` in `text`. Returns position after needle."""
-    idx = text.find(needle)
-    if idx >= 0:
-        return idx + len(needle)
-    # Try shorter match
-    for trim in range(1, len(needle), 5):
-        shorter = needle[trim:]
-        idx = text.find(shorter)
-        if idx >= 0:
-            return idx + len(shorter)
-    return -1
-
 
 def rebuild_one(book_id: str, master_path: Path, retrieval_path: Path) -> dict:
     master = json.loads(master_path.read_text(encoding="utf-8"))
@@ -42,136 +26,163 @@ def rebuild_one(book_id: str, master_path: Path, retrieval_path: Path) -> dict:
     if not chunks:
         return master
 
-    # Precompute: for each chunk, get a "search tail" (last MATCH_CHARS of its text)
-    # and the boundary position (next chunk's char_start)
+    narr_indices = []
+    narr_texts = []
+    for i, b in enumerate(old_blocks):
+        if b["is_narrative"] and b["type"] != "BANDERA":
+            narr_indices.append(i)
+            narr_texts.append(b["text"])
+
+    if not narr_texts:
+        return master
+
+    narr_canon = "\n\n".join(narr_texts)
+
+    narr_ranges = []
+    pos = 0
+    for text in narr_texts:
+        start = pos
+        end = pos + len(text)
+        narr_ranges.append((start, end))
+        pos = end + 2
+
     chunk_info = []
-    for i, chunk in enumerate(chunks):
-        tail = chunk["text"][-MATCH_CHARS:] if len(chunk["text"]) >= MATCH_CHARS else chunk["text"]
-        if i < len(chunks) - 1:
-            boundary = chunks[i + 1]["metadata"]["char_start"]
+    for chunk in chunks:
+        ctext = chunk["text"]
+        fpos = narr_canon.find(ctext)
+        if fpos >= 0:
+            chunk_info.append({
+                "chunk_id": chunk["chunk_id"],
+                "real_start": fpos,
+                "real_end": fpos + len(ctext),
+            })
         else:
-            boundary = chunk["metadata"]["char_end"]
-        chunk_info.append({
-            "chunk_id": chunk["chunk_id"],
-            "tail": tail,
-            "boundary": boundary,
-            "char_start": chunk["metadata"]["char_start"],
-            "char_end": chunk["metadata"]["char_end"],
-        })
-
-    new_blocks: list[dict] = []
-    canon_pos = 0  # track position in canonical text
-
-    for block in old_blocks:
-        btype = block["type"]
-
-        if btype == "BANDERA":
-            new_blocks.append(dict(block))
-            continue
-
-        if not block["is_narrative"]:
-            nb = dict(block)
-            nb["chunk_id"] = None
-            new_blocks.append(nb)
-            canon_pos += len(block["text"]) + 2
-            continue
-
-        # Narrative block
-        b_text = block["text"]
-        b_start = block["char_start"]
-        b_end = block["char_end"]
-
-        if b_end <= b_start:
-            nb = dict(block)
-            nb["chunk_id"] = None
-            new_blocks.append(nb)
-            continue
-
-        # Find chunks whose boundary falls inside this block
-        boundaries = []  # list of (canonical_pos, chunk_id_before)
-        for ci in chunk_info:
-            if b_start < ci["boundary"] < b_end:
-                boundaries.append(ci["boundary"])
-
-        if not boundaries:
-            # Block fits in one chunk: assign chunk_id
-            mid = (b_start + b_end) // 2
-            cid = None
-            for ci in chunk_info:
-                if ci["char_start"] <= mid < ci["char_end"]:
-                    cid = ci["chunk_id"]
-                    break
-            nb = dict(block)
-            nb["chunk_id"] = cid
-            new_blocks.append(nb)
-            canon_pos += len(block["text"]) + 2
-            continue
-
-        # Block spans multiple chunks: split at each boundary
-        # Use chunk tails to find exact split positions in text
-        unique_boundaries = sorted(set(boundaries))
-        split_positions = []  # positions in block text (relative to block start)
-
-        for boundary in unique_boundaries:
-            # Find the chunk whose next boundary is this one
-            for ci in chunk_info:
-                if ci["boundary"] == boundary:
-                    # ci is the chunk BEFORE the boundary
-                    # Try to find its tail in the block text
-                    pos = _find_split(b_text, ci["tail"])
-                    if pos > 0:
-                        split_positions.append(pos)
-                    break
-            else:
-                # Fallback: use canonical position
-                rel = boundary - b_start
-                if 0 < rel < len(b_text):
-                    split_positions.append(rel)
-
-        # Ensure clean splits
-        split_positions = sorted(set([0] + [p for p in split_positions if 0 < p < len(b_text)] + [len(b_text)]))
-
-        for i in range(len(split_positions) - 1):
-            seg_start_rel = split_positions[i]
-            seg_end_rel = split_positions[i + 1]
-            if seg_end_rel <= seg_start_rel:
-                continue
-            text = b_text[seg_start_rel:seg_end_rel]
-            if not text.strip():
-                continue
-
-            seg_start = b_start + seg_start_rel
-            seg_end = b_start + seg_end_rel
-            mid = (seg_start + seg_end) // 2
-
-            # Find chunk for this segment
-            cid = None
-            for ci in chunk_info:
-                if ci["char_start"] <= mid < ci["boundary"]:
-                    cid = ci["chunk_id"]
-                    break
-
-            new_blocks.append({
-                "id_block": "",
-                "type": btype,
-                "text": text,
-                "chunk_id": cid,
-                "char_start": seg_start,
-                "char_end": seg_end,
-                "is_narrative": True,
+            m = chunk["metadata"]
+            chunk_info.append({
+                "chunk_id": chunk["chunk_id"],
+                "real_start": m["char_start"],
+                "real_end": m["char_end"],
             })
 
-        canon_pos += len(block["text"]) + 2
+    chunk_boundaries = sorted(set(ci["real_end"] for ci in chunk_info))
 
-    # Reindex
-    for idx, b in enumerate(new_blocks):
+    # new_narr_by_old_idx maps old narrative block index -> list of new block dicts
+    new_narr_by_old_idx: dict[int, list[dict]] = {}
+
+    for narr_i, (b_start, b_end) in enumerate(narr_ranges):
+        old_idx = narr_indices[narr_i]
+        block = old_blocks[old_idx]
+        b_text = block["text"]
+
+        inner = [cb for cb in chunk_boundaries if b_start < cb < b_end]
+        segments: list[dict] = []
+
+        if not inner:
+            mid = (b_start + b_end) // 2
+            cid = _find_chunk(chunk_info, mid)
+            nb = dict(block)
+            nb["chunk_id"] = cid
+            nb["char_start"] = b_start
+            nb["char_end"] = b_end
+            segments.append(nb)
+        else:
+            split_points = [0]
+            for cb in sorted(set(inner)):
+                rel = cb - b_start
+                if 0 < rel < len(b_text):
+                    split_points.append(rel)
+            split_points.append(len(b_text))
+            split_points = sorted(set(split_points))
+
+            for j in range(len(split_points) - 1):
+                sr = split_points[j]
+                er = split_points[j + 1]
+                if er <= sr:
+                    continue
+                text = b_text[sr:er]
+                if not text.strip():
+                    continue
+
+                seg_start = b_start + sr
+                seg_end = b_start + er
+                mid = (seg_start + seg_end) // 2
+                cid = _find_chunk(chunk_info, mid)
+
+                segments.append({
+                    "id_block": "",
+                    "type": block["type"],
+                    "text": text,
+                    "chunk_id": cid,
+                    "char_start": seg_start,
+                    "char_end": seg_end,
+                    "is_narrative": True,
+                })
+
+        new_narr_by_old_idx[old_idx] = segments
+
+    non_narr_map = {i: b for i, b in enumerate(old_blocks) if not b["is_narrative"] and b["type"] != "BANDERA"}
+    bandera_map = {i: b for i, b in enumerate(old_blocks) if b["type"] == "BANDERA"}
+
+    final: list[dict] = []
+    for i in range(len(old_blocks)):
+        if i in bandera_map:
+            final.append(dict(bandera_map[i]))
+        elif i in non_narr_map:
+            final.append(dict(non_narr_map[i]))
+        elif i in new_narr_by_old_idx:
+            for seg in new_narr_by_old_idx[i]:
+                final.append(seg)
+
+    # Merge adjacent narrative blocks with same type.
+    # First pass: same chunk_id.
+    merged = _merge_adjacent(final, require_same_chunk=True)
+    # Second pass: same type regardless of chunk_id, for tiny boundary fragments.
+    merged = _merge_adjacent(merged, require_same_chunk=False, max_result_len=200)
+
+    for idx, b in enumerate(merged):
         b["id_block"] = f"{master['book_id']}::block::{idx + 1}"
 
     return {
         "book_id": master["book_id"],
         "metadata": master["metadata"],
-        "blocks": new_blocks,
+        "blocks": merged,
     }
+
+
+def _merge_adjacent(
+    blocks: list[dict],
+    require_same_chunk: bool,
+    max_result_len: int = 0,
+) -> list[dict]:
+    merged: list[dict] = []
+    for b in blocks:
+        if not b["is_narrative"]:
+            merged.append(b)
+            continue
+        if merged and merged[-1]["is_narrative"] and merged[-1]["type"] == b["type"]:
+            same_chunk = merged[-1].get("chunk_id") == b.get("chunk_id")
+            can_merge = same_chunk if require_same_chunk else True
+            if can_merge:
+                new_len = len(merged[-1]["text"]) + len(b["text"])
+                is_tiny = len(b["text"]) < 5
+                if max_result_len == 0 or new_len <= max_result_len or is_tiny:
+                    prev = merged[-1]
+                    prev["text"] = prev["text"] + b["text"]
+                    prev["char_end"] = b["char_end"]
+                    continue
+        merged.append(b)
+    return merged
+
+
+def _find_chunk(chunk_info: list[dict], canon_pos: int) -> str | None:
+    for ci in chunk_info:
+        if ci["real_start"] <= canon_pos < ci["real_end"]:
+            return ci["chunk_id"]
+    if canon_pos >= chunk_info[-1]["real_end"]:
+        return chunk_info[-1]["chunk_id"]
+    if canon_pos < chunk_info[0]["real_start"]:
+        return chunk_info[0]["chunk_id"]
+    return None
 
 
 def main():
@@ -194,11 +205,14 @@ def main():
         banderas = [b for b in blocks if b["type"] == "BANDERA"]
         non_narr = [b for b in blocks if not b["is_narrative"] and b["type"] != "BANDERA"]
         chunks = set(b.get("chunk_id") for b in narr if b.get("chunk_id"))
+        tiny = sum(1 for b in narr if 0 < len(b["text"]) < 5)
+        periods = sum(1 for b in narr if b["text"] == ".")
+        null_c = sum(1 for b in narr if b.get("chunk_id") is None)
         bpc = len(narr) / len(chunks) if chunks else 0
-        types = sorted(set(b["type"] for b in blocks))
         print(f"  {reader_path.name}: {len(blocks)} blocks "
               f"({len(narr)} narr -> {len(chunks)} chunks, {bpc:.1f}b/c, "
-              f"{len(non_narr)} paratext, {len(banderas)} banderas) types={types}")
+              f"{tiny} tiny, {periods} periods, {null_c} null, "
+              f"{len(non_narr)} paratext, {len(banderas)} banderas)")
 
 
 if __name__ == "__main__":

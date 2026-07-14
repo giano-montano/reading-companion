@@ -66,28 +66,43 @@ def _find_clean_boundary(
 ) -> int:
     """Find a clean boundary position near target_pos in text.
     Prefers paragraph breaks, then sentence endings, then spaces.
-    Returns a position >= target_pos (forward search) or < target_pos (backward).
+    Searches backward first; if nothing found, searches forward.
     """
-    # Search backward from target_pos for a clean break
     search_start = max(0, target_pos - search_range)
     search_end = min(len(text), target_pos + search_range)
 
-    # Prefer paragraph break
+    # Prefer paragraph break (backward)
     para_idx = text.rfind("\n\n", search_start, target_pos + 50)
     if para_idx != -1 and target_pos - para_idx < search_range:
-        return para_idx + 2  # after the double newline
+        return para_idx + 2
 
-    # Prefer sentence ending
+    # Prefer sentence ending (backward)
     for i in range(target_pos, search_start, -1):
         if i < len(text) and text[i] in SENTENCE_ENDINGS:
-            # Check if followed by space/newline or end of text
             if i + 1 >= len(text) or text[i + 1] in (" ", "\n", "\r"):
                 return i + 1
 
-    # Fall back to space
+    # Fall back to space (backward)
     space_idx = text.rfind(" ", search_start, target_pos + 30)
     if space_idx != -1:
         return space_idx + 1
+
+    # Nothing found backward — search FORWARD to avoid mid-word cuts
+    # Look for next sentence ending
+    for i in range(target_pos, search_end):
+        if i < len(text) and text[i] in SENTENCE_ENDINGS:
+            if i + 1 >= len(text) or text[i + 1] in (" ", "\n", "\r"):
+                return i + 1
+
+    # Look for next space (forward)
+    space_idx = text.find(" ", target_pos, search_end)
+    if space_idx != -1:
+        return space_idx + 1
+
+    # Look for next paragraph break (forward)
+    para_idx = text.find("\n\n", target_pos, search_end)
+    if para_idx != -1:
+        return para_idx + 2
 
     return target_pos
 
@@ -178,7 +193,7 @@ def chunk_book(
         chunk_start_char = token_char_starts[pos]
 
         # Accumulate tokens until we reach at least MIN_SEARCH_TOKENS
-        search_end = min(pos + MIN_SEARCH_TOKENS, total_tokens)
+        min(pos + MIN_SEARCH_TOKENS, total_tokens)
 
         # Try to close chunk naturally
         # Walk forward looking for a good block boundary
@@ -210,7 +225,7 @@ def chunk_book(
                     break
             elif end_candidate >= pos + SOFT_MAX_TOKENS:
                 # Past SOFT_MAX - look for sentence boundary
-                chunk_text_so_far = canonical[
+                canonical[
                     token_char_starts[pos] : token_char_ends[end_candidate - 1]
                 ]
                 # Try to find a clean sentence boundary backward
@@ -255,7 +270,6 @@ def chunk_book(
             break
 
         # Target overlap start in char space
-        overlap_target_char = chunk_end_char
         # Go back OVERLAP_TARGET_TOKENS tokens
         overlap_token_pos = max(pos, best_end - OVERLAP_TARGET_TOKENS)
         overlap_char_pos = token_char_starts[overlap_token_pos]
@@ -287,7 +301,7 @@ def chunk_book(
         chunk_tokens = _count_tokens(chunk["text"], tokenizer)
         if chunk_tokens < MIN_CHUNK_TOKENS and i > 0:
             prev = chunks_raw[i - 1]
-            prev_tokens = _count_tokens(prev["text"], tokenizer)
+            _count_tokens(prev["text"], tokenizer)
             combined_text = prev["text"] + "\n\n" + chunk["text"]
             combined_tokens = _count_tokens(combined_text, tokenizer)
             if combined_tokens <= HARD_MAX_TOKENS + 50:  # small tolerance
