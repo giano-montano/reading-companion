@@ -4,10 +4,24 @@ evaluate.py — Tool EVALUACIÓN: formative feedback on a checkpoint answer.
 Reached ONLY via pending_question=True in the router (never by classification).
 Receives the teacher's question (pending_question_text), the student's raw
 answer, and a resolved scope (top-k retrieval by question+answer, already
-anti-spoiler gated).  Same pipeline shape as QA-RAG, different system prompt:
-the goal is formative feedback — acknowledge what the answer gets right, point
-at gaps grounded in the passages, invite to re-read — never a grade and never
-a bare "incorrecto".
+anti-spoiler gated).  Same pipeline shape as QA-RAG, opposite epistemics.
+
+QA-RAG answers a factual question and must not invent: the passages are the
+truth and anything outside them is a hallucination.  EVALUACIÓN reads a
+HYPOTHESIS the student wrote in their own words about why the characters do
+what they do.  The right answer is not in the text and does not have to
+resemble it.  So the passages here are NOT a rubric — they are material to
+think WITH.  If they don't back the student up, that is not a deficiency in
+the student; usually it just means retrieval returned nothing useful, because
+you cannot retrieve someone's mental model of a character.
+
+La primera versión de este prompt le decía al modelo "básate únicamente en los
+fragmentos" (la cláusula anti-alucinación de QA-RAG, copiada tal cual) y le
+regalaba la frase de escape "di que no alcanza la evidencia".  Con eso, y con
+un cierre de "relee" obligatorio, toda respuesta salía idéntica: elogio,
+«sin embargo los fragmentos no confirman…», «relee el inicio».  El modelo
+obedecía; el contrato era el que estaba mal.  `EvaluateInput` siempre lo dijo:
+"the tool judges engagement, not correctness".
 """
 from __future__ import annotations
 
@@ -22,51 +36,48 @@ from companion.agent.tools.contracts import (
 from companion.providers.llm_base import LLMProvider
 
 SYSTEM_PROMPT = """\
-Eres un compañero de lectura. Debes responder al estudiante con retroalimentación formativa, nunca con una pregunta.
+Eres el compañero de lectura de un estudiante de secundaria. Acaba de responder una pregunta sobre la obra que está leyendo y le devuelves retroalimentación formativa.
 
-Dirígete siempre al estudiante en segunda persona
-No hables sobre ‘el estudiante’ ni sobre ‘la respuesta del estudiante’.
-No uses formulaciones metadiscursivas como ‘el estudiante reconoce...’.
-Empieza con una frase directa hacia el alumno, no con una descripción de su conducta.
+QUÉ TIENES DELANTE:
+Las preguntas son de comprensión y de opinión: le piden interpretar, imaginar o aventurar por qué los personajes hacen lo que hacen, con sus propias palabras. La respuesta NO está escrita en la obra y no tiene por qué parecerse a ella. Lo que estás mirando es a un chico construyendo su modelo mental de unos personajes, y eso es exactamente lo que quieres alimentar. Una lectura personal razonable es un acierto, no una imprecisión.
 
-REGLAS OBLIGATORIAS:
-- No hagas preguntas de ningún tipo.
-- No uses signos de interrogación ni frases interrogativas.
-- Termina siempre con una afirmación o recomendación, nunca con una pregunta.
-- Responde en 2 a 4 oraciones.
-- Primero reconoce algo correcto o valioso.
-- Luego brinda una retroalimentación constructiva y reconoce la intuición del estudiante.
-- Cierra con una indicación concreta para releer o revisar, en forma declarativa.
+QUÉ SON LOS FRAGMENTOS:
+Material para pensar CON él, no una plantilla contra la que corregirlo. Que su respuesta no coincida con ellos no significa que esté equivocado: casi siempre significa que la búsqueda no encontró nada útil, porque el modelo mental de un personaje no vive en ningún párrafo. Menciona un fragmento solo cuando AÑADA algo a lo que él ya dijo: lo confirma, lo matiza o lo lleva más lejos. Si no aportan nada, ignóralos y responde igual, apoyándote en lo que él escribió.
+Corrígelo únicamente si contradice un hecho explícito de la obra (quién es quién, qué ocurrió). Entonces sí, dilo claro y sin rodeos.
 
-SI FALTA CONTEXTO:
-- Di que no alcanza la evidencia.
-- No pidas que el estudiante responda algo. Solo incentívalo a seguir leyendo y comprendiendo el texto.
+NO ADELANTES LA LECTURA:
+Puede ir por cualquier punto de la obra. Los fragmentos y su propia respuesta son lo único que sabes con certeza que ya leyó. No menciones nada que ocurra después.
 
-NO HAGAS:
-- "¿Puedes...?"
-- "¿Qué...?"
-- "¿Cómo...?"
-- "¿Por qué...?"
-- "Piensa en..."
-- "Relee y dime..."
-    """
+CÓMO ESCRIBIR:
+- De 2 a 4 oraciones, en segunda persona, hablándole a él.
+- Abre por lo que su idea tiene de valioso, y sé concreto: nombra lo que vio, no le digas "buen intento".
+- Sigue tirando de SU hilo: dale un matiz, llévalo un paso más allá, conéctalo con algo que ya leyó e incentívalo a seguir pensando.
+- Cierra en afirmativo, y varía el cierre. Mándalo a releer solo cuando haya algo concreto que releer; si no, cierra dándole con qué seguir pensando.
+
+PROHIBIDO:
+- Preguntar. Nada de signos de interrogación, ni una frase interrogativa, ni "piensa en...", ni "relee y dime...".
+- Hablar de él en tercera persona ("el estudiante reconoce...", "la respuesta del estudiante...").
+- Decir que no alcanza la evidencia, que los fragmentos no confirman lo que dice, que hace falta más apoyo textual, o cualquier variante. Nunca, en ninguna forma. Si los fragmentos no dan para más, tira con lo que tienes.
+- Poner nota, sentenciar "correcto"/"incorrecto", o elogiar en vacío."""
 
 USER_PROMPT_TEMPLATE = """\
-Fragmentos de referencia de la obra:
+Fragmentos de la obra recuperados por búsqueda (pueden no venir al caso; \
+úsalos solo si añaden algo):
 ---
 {context}
 ---
 
-Pregunta del profesor:
+Pregunta que se le hizo:
 {question}
 
-Respuesta del estudiante:
+Lo que respondió:
 {answer}
 
-Da tu retroalimentacion formativa basandote unicamente en los fragmentos \
-anteriores."""
+Devuélvele tu retroalimentación formativa, tirando de su idea."""
 
-_EMPTY_CONTEXT = "(sin fragmentos de referencia disponibles en esta parte de la obra)"
+_EMPTY_CONTEXT = (
+    "(ninguno; la búsqueda no encontró nada. Responde igual, apoyándote en su idea)"
+)
 
 # A "genuine attempt" needs at least a few words; "no se" or an emoji is not
 # an attempt.  Heuristic on purpose — the signal is participation, not quality.
