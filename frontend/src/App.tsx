@@ -16,7 +16,7 @@ export default function App() {
 
   return (
     <main>
-      <h1>Reading Companion</h1>
+      <h1>Compañero de lectura IA</h1>
       <p>Elige un libro para empezar a leer.</p>
       <BookCatalog onSelect={setSelected} />
     </main>

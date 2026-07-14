@@ -93,10 +93,14 @@ class VisualSupportService:
     def prepare(self, request: VisualSupportRequest) -> VisualSupportRequest:
         """Destila el extracto en escenas (8B) ANTES de armar el prompt de imagen.
 
-        Sin esto, el generador recibía la prosa cruda y se le pedía elegir los
-        momentos importantes: alucinaba y renderizaba texto.  Si el caller ya
-        mandó `visual_events`, se respetan tal cual.  Si el planner falla, se
-        sigue sin plan: la imagen se genera igual, nunca se rompe la petición."""
+        El plan NO es opcional: es lo único que separa al generador de la prosa en
+        español.  Antes este método se tragaba el fallo del planner y seguía sin
+        plan; el prompt caía entonces al texto crudo de la obra y Flux lo dibujaba
+        como pie de foto.  Un planner caído producía imágenes plausibles y
+        equivocadas, y costaban dinero.
+
+        Así que ahora revienta.  El runner lo convierte en un job fallido con su
+        mensaje, que es infinitamente más útil que una página de libro dibujada."""
         if request.visual_events:
             return request
 
@@ -107,10 +111,13 @@ class VisualSupportService:
                 scope=request.scope,
                 frame_count=frame_count,
                 title=request.title,
+                context=request.context,
             )
-        except Exception as exc:  # noqa: BLE001 — degradar, no romper
-            logger.warning("scene_planner falló, genero sin plan de escenas: %s", exc)
-            return request
+        except Exception as exc:
+            logger.error("scene_planner falló; no genero imagen: %s", exc)
+            raise RuntimeError(
+                f"No pude planificar la escena y sin plan no ilustro: {exc}"
+            ) from exc
 
         update: dict[str, object] = {"visual_events": plan.visual_events}
         if plan.characters and not request.characters:

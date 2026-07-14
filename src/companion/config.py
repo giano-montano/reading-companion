@@ -50,6 +50,17 @@ class Settings(BaseSettings):
     # imágenes (ver visual_support/scene_planner.py). Modelo ligero a propósito.
     visual_planner_model: str = Field("meta/llama-3.1-8b-instruct")
 
+    # Provider POR ROL.  None → cae a `llm_provider`.  El modelo ya era por rol;
+    # el provider no, y eso obligaba a que los tres vivieran en el mismo sitio:
+    # o todo NVIDIA, o todo OpenAI.  Ahora el content puede pagarse aparte
+    # mientras el router y el planificador siguen en el 8B gratuito.
+    #
+    # Un rol solo es coherente si su modelo existe en SU provider: pedirle
+    # `gpt-5.4-mini` a NVIDIA es un 404 en cada llamada.
+    router_provider:         str | None = Field(None)
+    content_provider:        str | None = Field(None)
+    visual_planner_provider: str | None = Field(None)
+
     # LLM response cache (applies to real providers; mock is never cached)
     llm_cache_enabled: bool = Field(True)
     llm_cache_dir: str = Field("./.llm_cache")

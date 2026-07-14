@@ -21,7 +21,9 @@ from enum import Enum
 from fastapi import APIRouter, BackgroundTasks, HTTPException, Request
 from pydantic import BaseModel, Field
 
-from companion.scope.catalog import build_scope_text, get_catalog
+from companion.api.deps import get_orchestrator
+from companion.scope.catalog import build_scope_text, get_book_title, get_catalog
+from companion.visual_support.background import build_background
 from companion.visual_support.schemas import VisualCharacter, VisualSupportRequest
 from companion.images.jobs import create_job, get_job
 from companion.images.runner import run_image_job
@@ -45,6 +47,12 @@ _SCOPE_TO_VISUAL: dict[ImageScope, str] = {
     ImageScope.HASTA_MAXIMO: "full_text",
     ImageScope.OBRA: "full_text",
 }
+
+# Scopes que necesitan trasfondo: su texto es una ventana estrecha y no dice quién
+# es quién.  `hasta_maximo` y `obra` NO lo necesitan — su propio texto ya arranca en
+# el chunk 1 (build_scope_text muestrea desde el principio de la obra), así que ya
+# llevan el planteamiento dentro y el trasfondo solo gastaría tokens.
+_SCOPES_NEEDING_BACKGROUND = {ImageScope.VISTA, ImageScope.SECCION}
 
 
 class ImageRequest(BaseModel):
@@ -122,10 +130,23 @@ def create_image(
             detail="Selected scope resolved to too little text to illustrate.",
         )
 
+    context = ""
+    if payload.scope in _SCOPES_NEEDING_BACKGROUND:
+        context = build_background(
+            orchestrator=get_orchestrator(),
+            book_id=payload.book_id,
+            scene=text,
+            focus_ids=payload.chunk_ids,
+            # El botón "lo que veo" no manda progreso: el suelo es lo que se ve
+            # (build_background lo resuelve), que ya está leído por definición.
+            max_progress_chunk_index=payload.max_progress_chunk_index or 0,
+        )
+
     vsr = VisualSupportRequest(
         text=text,
         scope=_SCOPE_TO_VISUAL[payload.scope],  # type: ignore[arg-type]
-        title=payload.title,
+        title=payload.title or get_book_title(payload.book_id),
+        context=context,
         visual_events=payload.visual_events,
         characters=payload.characters,
         model=payload.model,

@@ -99,6 +99,41 @@ class QaRagOrchestrator:
         filtered = _anti_spoiler_filter(retrieved, max_chunk_index)
         return [_retrieved_to_scope_chunk(d) for d in filtered]
 
+    def retrieve_background(
+        self,
+        *,
+        query: str,
+        book_id: str,
+        max_chunk_index: int,
+        exclude: list[str] | None = None,
+        top_k: int | None = None,
+    ) -> list[ScopeChunk]:
+        """Pasajes YA LEÍDOS que dan contexto a una ilustración.
+
+        Misma tubería que el QA-RAG (embed → Chroma → anti-spoiler), pero el
+        resultado no se responde: alimenta al planificador de escenas para que
+        sepa quién es quién y qué aspecto tiene. Sin esto, un chunk a media obra
+        no revela que Gregorio es un insecto y la imagen sale de un hombre.
+
+        `exclude` quita los chunks que el alumno ya está viendo: ésos son la
+        escena, no el trasfondo.
+
+        `top_k` se pide más alto que en el QA-RAG a propósito: el anti-spoiler
+        descarta después, y los vecinos del chunk visible (los más parecidos)
+        se llevan casi todos los puestos. Con el top_k del QA sobrevivía uno.
+        """
+        query_vec = self._embedder.embed(query)
+        retrieved = self._store.search(
+            query_vec,
+            variant=book_id,
+            top_k=top_k or self._top_k,
+        )
+        filtered = _anti_spoiler_filter(retrieved, max_chunk_index)
+        skip = set(exclude or ())
+        return [
+            _retrieved_to_scope_chunk(d) for d in filtered if d.chunk_id not in skip
+        ]
+
     def evaluate(
         self,
         *,

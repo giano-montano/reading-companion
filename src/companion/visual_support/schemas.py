@@ -17,6 +17,12 @@ class VisualSupportRequest(BaseModel):
     text: str = Field(..., min_length=20)
     scope: VisualScope = "section"
 
+    # Trasfondo recuperado de lo que el alumno YA leyó (retrieval + anti-spoiler).
+    # NO se dibuja: solo le dice al planificador quiénes son los personajes y qué
+    # aspecto tienen.  Sin esto, un chunk a media obra no revela que Gregorio es un
+    # insecto (solo 7 de 96 chunks lo mencionan) y la ilustración sale de un hombre.
+    context: str = ""
+
     title: str | None = None
     section_id: str | None = None
 
