@@ -16,10 +16,16 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
-    # LLM — "mock" | "gemini" | "anthropic" | "nvidia"
+    # LLM — "mock" | "gemini" | "anthropic" | "nvidia" | "openai"
     llm_provider: str = Field("mock")
     llm_model: str = Field("mock-model")
     anthropic_api_key: str | None = Field(None)
+
+    # OpenAI.  base_url es configurable a propósito: sirve para cualquier
+    # endpoint compatible (Azure, un proxy, un gateway propio).
+    openai_api_key: str | None = Field(None)
+    openai_base_url: str = Field("https://api.openai.com/v1")
+    openai_model: str = Field("gpt-5.4-mini")
 
     # Google / Gemini
     google_api_key: str | None = Field(None)

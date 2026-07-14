@@ -16,6 +16,11 @@ def _build_role_llm(role: str, model: str, temperature: float) -> LLMProvider:
         provider: LLMProvider = NvidiaLLMProvider(model=model, temperature=temperature)
         tag = f"nvidia:{role}:{model}"
 
+    elif settings.llm_provider == "openai":
+        from companion.providers.openai_llm import OpenAILLMProvider
+        provider = OpenAILLMProvider(model=model, temperature=temperature)
+        tag = f"openai:{role}:{model}"
+
     elif settings.llm_provider == "gemini":
         from companion.providers.gemini_llm import GeminiProvider
         provider = GeminiProvider(model=settings.gemini_model)
@@ -76,6 +81,11 @@ def get_llm_provider(cached: bool | None = None) -> LLMProvider:
         from companion.providers.nvidia_llm import NvidiaLLMProvider
         provider = NvidiaLLMProvider(model=settings.nvidia_model)
         model_name = settings.nvidia_model
+
+    elif settings.llm_provider == "openai":
+        from companion.providers.openai_llm import OpenAILLMProvider
+        provider = OpenAILLMProvider(model=settings.openai_model)
+        model_name = settings.openai_model
     else:
         from companion.providers.mock_llm import MockLLMProvider
         return MockLLMProvider()   # mock: skip cache, already deterministic
