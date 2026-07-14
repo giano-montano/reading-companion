@@ -65,9 +65,23 @@ export const getReader = (bookId: string): Promise<ReaderResponse> =>
 export const createImageJob = (body: ImageRequest): Promise<ImageJobCreated> =>
   request("/api/images", { method: "POST", body: JSON.stringify(body) });
 
-/** Maña #8: antepone el origin si el poll_url viene relativo (rama chat). */
-export const resolvePollUrl = (pollUrl: string): string =>
-  pollUrl.startsWith("/") ? `${API_BASE_URL}${pollUrl}` : pollUrl;
+/**
+ * Reconstruye cualquier URL que nos dé el backend contra API_BASE_URL, quedándonos
+ * solo con su path.
+ *
+ * Maña #8: /api/chat devuelve el poll_url relativo y /api/images lo devuelve absoluto.
+ * Maña #10 (2026-07-13): además, el absoluto puede venir MAL. El backend lo firma con
+ * `request.base_url`, y ngrok reescribe el Host a localhost:8000 → el backend anuncia
+ * `https://localhost:8000/...`; el navegador intenta TLS contra el uvicorn en claro y
+ * revienta con ERR_SSL_PROTOCOL_ERROR ("Failed to fetch"; en el server, "Invalid HTTP
+ * request received").
+ *
+ * El host que diga el backend es irrelevante: el frontend ya sabe dónde vive la API.
+ */
+export const resolvePollUrl = (url: string): string => {
+  const path = url.startsWith("/") ? url : new URL(url).pathname;
+  return `${API_BASE_URL}${path}`;
+};
 
 export async function getImageJob(pollUrl: string): Promise<ImageJobStatus> {
   const res = await fetch(resolvePollUrl(pollUrl), {
