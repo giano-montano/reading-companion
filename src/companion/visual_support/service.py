@@ -104,7 +104,7 @@ class VisualSupportService:
         if request.visual_events:
             return request
 
-        frame_count = infer_frame_count(request.scope, request.text)
+        frame_count = infer_frame_count(request.scope)
         try:
             plan = self._get_planner().plan(
                 text=request.text,

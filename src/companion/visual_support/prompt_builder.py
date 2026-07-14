@@ -27,13 +27,13 @@ from __future__ import annotations
 from companion.visual_support.schemas import VisualSupportRequest
 
 _STYLE = (
-    "children's storybook illustration, warm soft lighting, clean digital painting, "
+    "student storybook illustration, warm soft lighting, clean digital painting, "
     "gentle expressive faces, simple uncluttered background"
 )
 _PANEL_LABELS = ("Left panel", "Center panel", "Right panel")
 
 
-def infer_frame_count(scope: str, text: str) -> int:
+def infer_frame_count(scope: str) -> int:
     """paragraph → 1 imagen; section / full_text → 3 viñetas."""
     if scope == "paragraph":
         return 1
@@ -82,7 +82,7 @@ def build_visual_prompt(request: VisualSupportRequest) -> tuple[str, int]:
     if not request.visual_events:
         raise ValueError("no hay visual_events: no se puede construir el prompt")
 
-    frame_count = infer_frame_count(request.scope, request.text)
+    frame_count = infer_frame_count(request.scope)
     if frame_count == 1:
         return build_single_scene_prompt(request), frame_count
     return build_three_frame_prompt(request), frame_count

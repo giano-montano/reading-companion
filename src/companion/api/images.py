@@ -135,7 +135,6 @@ def create_image(
         context = build_background(
             orchestrator=get_orchestrator(),
             book_id=payload.book_id,
-            scene=text,
             focus_ids=payload.chunk_ids,
             # El botón "lo que veo" no manda progreso: el suelo es lo que se ve
             # (build_background lo resuelve), que ya está leído por definición.
@@ -153,7 +152,7 @@ def create_image(
         width=payload.width,
         height=payload.height,
         seed=payload.seed,
-        allow_text_in_image=False, #payload.allow_text_in_image,
+        allow_text_in_image=payload.allow_text_in_image,
         mock=payload.mock,
     )
 

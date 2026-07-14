@@ -223,7 +223,6 @@ class AgentRuntime:
             context=build_background(
                 orchestrator=self._orchestrator,
                 book_id=book_id,
-                scene=text,
                 focus_ids=focus_ids,
                 max_progress_chunk_index=reading_state.max_progress_chunk_index,
             ),

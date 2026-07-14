@@ -55,7 +55,6 @@ def build_background(
     *,
     orchestrator,
     book_id: str,
-    scene: str,
     focus_ids: list[str],
     max_progress_chunk_index: int,
 ) -> str:
