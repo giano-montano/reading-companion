@@ -4,8 +4,8 @@
  * envía: rige el default del server (en dev, SVG placeholder). Cuando el
  * equipo quiera imagen real se añade un toggle que mande mock:false explícito.
  */
-import { useMemo, useRef, useState } from "react";
-import { createImageJob, pollImageJob } from "../api/client";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { createImageJob, fetchImageObjectUrl, pollImageJob } from "../api/client";
 import type { ImageRequest, ReaderBlock, ReadingState } from "../api/types";
 
 interface Props {
@@ -26,6 +26,16 @@ export function IllustrateBar({ bookId, blocks, readingState }: Props) {
   // vía CSS). Se puede mover para no tapar el chat mientras se lee/responde.
   const [pos, setPos] = useState<{ x: number; y: number } | null>(null);
   const dragRef = useRef<{ dx: number; dy: number } | null>(null);
+  // Object URL de la imagen que se está mostrando (maña #9): solo hay una a la
+  // vez, así que se libera al reemplazarla, al cerrar la tarjeta y al desmontar.
+  const objectUrl = useRef<string | null>(null);
+
+  function releaseObjectUrl() {
+    if (objectUrl.current) URL.revokeObjectURL(objectUrl.current);
+    objectUrl.current = null;
+  }
+
+  useEffect(() => releaseObjectUrl, []);
 
   function onDragStart(e: React.PointerEvent<HTMLElement>) {
     if ((e.target as HTMLElement).closest("button")) return; // no arrastrar al cerrar
@@ -75,12 +85,16 @@ export function IllustrateBar({ bookId, blocks, readingState }: Props) {
   );
 
   async function illustrate(label: string, body: ImageRequest) {
+    releaseObjectUrl(); // la tarjeta anterior deja de mostrarse
     setCard({ label, status: "pending" });
     try {
       const created = await createImageJob(body);
       const job = await pollImageJob(created.poll_url);
       if (job.status === "done" && job.image_url) {
-        setCard({ label, status: "done", url: job.image_url });
+        // Maña #9: el <img> no puede mandar el header de ngrok → bajamos los
+        // bytes por fetch y pintamos desde un blob local.
+        objectUrl.current = await fetchImageObjectUrl(job.image_url);
+        setCard({ label, status: "done", url: objectUrl.current });
       } else {
         setCard({ label, status: "error", error: job.error ?? "La imagen no se pudo generar." });
       }
@@ -158,7 +172,15 @@ export function IllustrateBar({ bookId, blocks, readingState }: Props) {
             title="Arrastra para mover la ventana"
           >
             <span>⠿ Ilustración: {card.label}</span>
-            <button onClick={() => setCard(null)} aria-label="Cerrar">✕</button>
+            <button
+              onClick={() => {
+                releaseObjectUrl();
+                setCard(null);
+              }}
+              aria-label="Cerrar"
+            >
+              ✕
+            </button>
           </header>
           {card.status === "pending" && <p className="thinking">Generando…</p>}
           {card.status === "error" && <p className="catalog-error">{card.error}</p>}

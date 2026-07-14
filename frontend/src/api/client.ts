@@ -77,6 +77,25 @@ export async function getImageJob(pollUrl: string): Promise<ImageJobStatus> {
   return res.json() as Promise<ImageJobStatus>;
 }
 
+/**
+ * Descarga la imagen y la devuelve como object URL para pintarla en un <img>.
+ *
+ * Maña #9 (2026-07-13): un <img src="https://…"> NO puede mandar headers, así
+ * que ngrok le sirve su página HTML de advertencia (200 text/html) en vez del
+ * PNG y la imagen nunca carga. `fetch` sí puede mandar el header, así que
+ * bajamos los bytes por aquí y pintamos desde un blob local.
+ *
+ * El caller es dueño del object URL: debe llamar a `URL.revokeObjectURL(url)`
+ * cuando deje de mostrarlo, o se filtra memoria.
+ */
+export async function fetchImageObjectUrl(imageUrl: string): Promise<string> {
+  const res = await fetch(resolvePollUrl(imageUrl), {
+    headers: NGROK_BROWSER_WARNING_HEADER,
+  });
+  if (!res.ok) throw new ApiError(res.status, res.statusText);
+  return URL.createObjectURL(await res.blob());
+}
+
 /** Hace poll cada `intervalMs` hasta status done|error. Abortable. */
 export async function pollImageJob(
   pollUrl: string,

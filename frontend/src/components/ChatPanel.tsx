@@ -7,7 +7,7 @@
  * tracker de scroll. Sin timeout: el QA-RAG real tarda ~90s (maña #2).
  */
 import { useEffect, useRef, useState } from "react";
-import { pollImageJob, streamChat } from "../api/client";
+import { fetchImageObjectUrl, pollImageJob, streamChat } from "../api/client";
 import type { AgentState, Citation, ReadingState } from "../api/types";
 import { emptyAgentState } from "../api/types";
 
@@ -68,10 +68,20 @@ export function ChatPanel({
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const lastCheckpointId = useRef<string | null>(null);
   const nextIdRef = useRef(1); // ref y no módulo: sobrevive HMR sin colisionar ids
+  // Object URLs de las imágenes ya pintadas (maña #9): se liberan al desmontar.
+  const objectUrls = useRef<string[]>([]);
 
   useEffect(() => {
     listRef.current?.scrollTo({ top: listRef.current.scrollHeight });
   }, [items, phase]);
+
+  useEffect(
+    () => () => {
+      for (const url of objectUrls.current) URL.revokeObjectURL(url);
+      objectUrls.current = [];
+    },
+    [],
+  );
 
   // Auto-grow del textarea: crece con el texto hasta el max-height del CSS,
   // y vuelve a una línea cuando se limpia (tras enviar).
@@ -176,16 +186,23 @@ export function ChatPanel({
               break;
             case "image_job": {
               const imgId = push({ kind: "image", text: "Generando la ilustración…" });
-              void pollImageJob(ev.data.poll_url)
-                .then((job) =>
-                  patch(
-                    imgId,
-                    job.status === "done"
-                      ? { text: "", imageUrl: job.image_url }
-                      : { text: "", imageError: job.error ?? "La imagen no se pudo generar." },
-                  ),
-                )
-                .catch((err: Error) => patch(imgId, { text: "", imageError: err.message }));
+              void (async () => {
+                const job = await pollImageJob(ev.data.poll_url);
+                if (job.status !== "done" || !job.image_url) {
+                  patch(imgId, {
+                    text: "",
+                    imageError: job.error ?? "La imagen no se pudo generar.",
+                  });
+                  return;
+                }
+                // Maña #9: el <img> no puede mandar el header de ngrok, así que
+                // bajamos los bytes por fetch y pintamos desde un blob local.
+                const objectUrl = await fetchImageObjectUrl(job.image_url);
+                objectUrls.current.push(objectUrl);
+                patch(imgId, { text: "", imageUrl: objectUrl });
+              })().catch((err: Error) =>
+                patch(imgId, { text: "", imageError: err.message }),
+              );
               break;
             }
             case "notice":
