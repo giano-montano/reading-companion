@@ -23,6 +23,7 @@ token streaming later only changes `_stream_qa_rag`, not the event contract.
 """
 from __future__ import annotations
 
+import logging
 import re
 from collections.abc import Iterator
 from typing import Any
@@ -32,8 +33,11 @@ from companion.agent.router import Router, RouterAction
 from companion.agent.state import AgentState
 from companion.agent.tools.contracts import ReadingState
 from companion.images.runner import start_image_job_thread
-from companion.scope.catalog import build_scope_text, get_catalog
+from companion.scope.catalog import build_scope_text, get_book_title, get_catalog
+from companion.visual_support.background import build_background
 from companion.visual_support.schemas import VisualSupportRequest
+
+logger = logging.getLogger(__name__)
 
 Event = tuple[str, dict[str, Any]]
 
@@ -212,9 +216,20 @@ class AgentRuntime:
             return
 
         # scope 'paragraph' → single-panel illustration of the visible fragment.
-        vsr = VisualSupportRequest(text=text, scope="paragraph")
+        vsr = VisualSupportRequest(
+            text=text,
+            scope="paragraph",
+            title=get_book_title(book_id),
+            context=build_background(
+                orchestrator=self._orchestrator,
+                book_id=book_id,
+                focus_ids=focus_ids,
+                max_progress_chunk_index=reading_state.max_progress_chunk_index,
+            ),
+        )
         job_id = start_image_job_thread(vsr)
         yield "image_job", {
             "job_id": job_id,
             "poll_url": f"/api/images/{job_id}",
         }
+

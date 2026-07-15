@@ -2,28 +2,13 @@
 CHUNKING REPORT
 ======================================================================
 
-Tokenizer: intfloat/multilingual-e5-small
+Tokenizer: intfloat/multilingual-e5-base
 MIN_SEARCH_TOKENS: 350
 SOFT_MAX_TOKENS: 470
 HARD_MAX_TOKENS: 500
 OVERLAP_TARGET_TOKENS: 100
 OVERLAP_MIN_TOKENS: 60
 MIN_CHUNK_TOKENS: 200
-
---- cronica_de_una_muerte_anunciada_gabriel_garcia_marquez.master.json ---
-  book_id:              cronica_de_una_muerte_anunciada_gabriel_garcia_marquez
-  chunks generados:     137
-  bloques narrativos:   298
-  bloques ignorados:    28
-  avg tokens/chunk:     427.7
-  min tokens/chunk:     275
-  max tokens/chunk:     482
-  median tokens/chunk:  445
-  avg chars/chunk:      1657.9
-  min chars/chunk:      983
-  max chars/chunk:      1999
-  cortes duros:         0
-  chunks fusionados:    0
 
 --- el_maravilloso_mago_de_oz_baum_lyman_frank.master.json ---
   book_id:              el_maravilloso_mago_de_oz_baum_lyman_frank
@@ -55,21 +40,6 @@ MIN_CHUNK_TOKENS: 200
   cortes duros:         0
   chunks fusionados:    1
 
---- la_ciudad_y_los_perros_mario_vargas_llosa.master.json ---
-  book_id:              la_ciudad_y_los_perros_mario_vargas_llosa
-  chunks generados:     675
-  bloques narrativos:   2795
-  bloques ignorados:    90
-  avg tokens/chunk:     417.8
-  min tokens/chunk:     232
-  max tokens/chunk:     485
-  median tokens/chunk:  426
-  avg chars/chunk:      1493.1
-  min chars/chunk:      803
-  max chars/chunk:      1868
-  cortes duros:         0
-  chunks fusionados:    0
-
 --- la_metamorfosis_franz_kafka.master.json ---
   book_id:              la_metamorfosis_franz_kafka
   chunks generados:     96
@@ -85,50 +55,5 @@ MIN_CHUNK_TOKENS: 200
   cortes duros:         0
   chunks fusionados:    0
 
---- las_aventuras_de_tom_sawyer_mark_twain.master.json ---
-  book_id:              las_aventuras_de_tom_sawyer_mark_twain
-  chunks generados:     382
-  bloques narrativos:   1839
-  bloques ignorados:    70
-  avg tokens/chunk:     406.3
-  min tokens/chunk:     209
-  max tokens/chunk:     483
-  median tokens/chunk:  391.0
-  avg chars/chunk:      1495.2
-  min chars/chunk:      910
-  max chars/chunk:      1939
-  cortes duros:         0
-  chunks fusionados:    0
-
---- matalache_enrique_lopez_albujar.master.json ---
-  book_id:              matalache_enrique_lopez_albujar
-  chunks generados:     354
-  bloques narrativos:   4497
-  bloques ignorados:    163
-  avg tokens/chunk:     359.4
-  min tokens/chunk:     196
-  max tokens/chunk:     395
-  median tokens/chunk:  359.0
-  avg chars/chunk:      1327.6
-  min chars/chunk:      665
-  max chars/chunk:      1511
-  cortes duros:         0
-  chunks fusionados:    0
-
---- viaje_al_centro_de_la_tierra_julio_verne.master.json ---
-  book_id:              viaje_al_centro_de_la_tierra_julio_verne
-  chunks generados:     414
-  bloques narrativos:   2306
-  bloques ignorados:    117
-  avg tokens/chunk:     389.9
-  min tokens/chunk:     349
-  max tokens/chunk:     481
-  median tokens/chunk:  378.0
-  avg chars/chunk:      1486.8
-  min chars/chunk:      1153
-  max chars/chunk:      1960
-  cortes duros:         0
-  chunks fusionados:    0
-
-TOTAL CHUNKS: 2353
-TOTAL FILES:  8
+TOTAL CHUNKS: 391
+TOTAL FILES:  3

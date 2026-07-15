@@ -12,8 +12,8 @@ Solución: un LLM ligero (8B) destila el extracto en
   * `characters`     — rasgos físicos breves, para que el personaje se vea igual
     en los tres paneles y Flux no le invente uno distinto en cada frame.
 
-El prompt de imagen deja de recibir la pared de prosa: solo un extracto breve
-como anclaje de tono (ver `prompt_builder._brief_excerpt`).
+El prompt de imagen no recibe prosa en absoluto: solo estas escenas ya destiladas
+(ver `prompt_builder`, que las monta como un pie de foto corto).
 
 Textos largos → **map-reduce**: se resume cada trozo por separado (en paralelo)
 y luego se consolidan esos resúmenes en el plan final. Así una obra entera cabe
@@ -76,17 +76,39 @@ Rules for `characters`:
   illustrator draws them the same way in every panel. Max ~12 words.
 - If the fragment doesn't describe appearance, give a short neutral description
   consistent with the setting and period. Do not invent plot.
+
+Rules for the `Background` section, when it is present:
+- It comes from EARLIER passages the student has already read. It is CONTEXT, not
+  content: it tells you WHO the characters are and WHAT THEY LOOK LIKE.
+- NEVER turn the background into a visual_event. Draw only the `Fragment`.
+- Its physical descriptions OVERRIDE your assumptions. If the background reveals a
+  character's true form — a transformation, a disguise, a non-human body — the
+  `characters` description MUST reflect it, even if the fragment never repeats it.
+  A fragment saying "he could not turn over in bed" is a giant insect struggling
+  on its back if the background says he woke up transformed into one.
 """
 
 _PLAN_USER = """\
 {title_line}Number of visual_events required: {frame_count}
-{scope_line}
-Fragment:
+{scope_line}{context_block}
+Fragment (THIS is what you must illustrate):
 \"\"\"
 {text}
 \"\"\"
 
 Return the JSON now."""
+
+_CONTEXT_BLOCK = """
+Background — earlier passages the student has ALREADY read. Context only: use it to
+know who the characters are and what they physically look like. Do NOT illustrate it.
+\"\"\"
+{context}
+\"\"\"
+"""
+
+# El trasfondo es apoyo, no el sujeto: da para los 2 chunks que manda
+# `background.build_background` (~1.700 chars cada uno).
+_MAX_CONTEXT_CHARS = 3_600
 
 _FULL_TEXT_HINT = (
     "This fragment covers a whole work: the events must summarize (1) the "
@@ -152,11 +174,13 @@ class ScenePlanner:
         scope: str,
         frame_count: int,
         title: str | None = None,
+        context: str = "",
     ) -> ScenePlan:
         source = text.strip()
         if len(source) > _SINGLE_PASS_MAX_CHARS:
             source = self._condense(source)
 
+        background = context.strip()[:_MAX_CONTEXT_CHARS]
         messages = [
             {"role": "system", "content": _PLAN_SYSTEM},
             {
@@ -165,6 +189,7 @@ class ScenePlanner:
                     title_line=f"Title: {title}\n" if title else "",
                     frame_count=frame_count,
                     scope_line=_FULL_TEXT_HINT if scope == "full_text" else "",
+                    context_block=_CONTEXT_BLOCK.format(context=background) if background else "",
                     text=source,
                 ),
             },
