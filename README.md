@@ -9,6 +9,7 @@
 <img alt="python" src="https://img.shields.io/badge/python-3.10%2B-3776AB?logo=python&logoColor=white">
 <img alt="fastapi" src="https://img.shields.io/badge/API-FastAPI%20%2B%20SSE-009688?logo=fastapi&logoColor=white">
 <img alt="rag" src="https://img.shields.io/badge/RAG-E5%20%2B%20ChromaDB-orange">
+<img alt="license" src="https://img.shields.io/badge/licencia-MIT-green">
 </p>
 
 **▶️ [Ver la demo en vídeo](https://youtu.be/6d9IIVmy-bo)**
@@ -155,6 +156,5 @@ desarrolladores y sus agentes de terminal (ver [`agent_log/`](agent_log/)).
 
 ## Licencia
 
-Proyecto académico con fines educativos y de portafolio. Si quieres reutilizar el código,
-escríbeme — al ser un trabajo grupal, cualquier licencia abierta se acordaría con el
-equipo antes de aplicarla.
+Publicado bajo licencia **[MIT](LICENSE)** © 2026 Grupo 8 (PUCP). Puedes usar, copiar,
+modificar y distribuir el código libremente, manteniendo el aviso de copyright.
